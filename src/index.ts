@@ -506,7 +506,16 @@ async function handleWebhook(request: Request, env: Env, urlPath: string): Promi
 
   let payload: unknown = rawBody;
   if (rawBody) {
-    try { payload = JSON.parse(rawBody) as unknown; } catch { payload = rawBody; }
+    const contentType = request.headers.get("Content-Type") ?? "";
+    if (contentType.includes("application/json")) {
+      try {
+        payload = JSON.parse(rawBody) as unknown;
+      } catch {
+        return json({ error: "invalid_json" }, 400);
+      }
+    } else {
+      try { payload = JSON.parse(rawBody) as unknown; } catch { /* not JSON, use raw */ }
+    }
   }
 
   // Use config.source for the parser (not the URL path)
@@ -627,5 +636,5 @@ async function deliverWebhookMessage(
       }
     }),
   );
-  return results.some(Boolean); // succeed if at least one bot delivered
+  return results.every(Boolean);
 }

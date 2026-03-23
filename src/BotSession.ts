@@ -804,6 +804,7 @@ export class BotSession implements DurableObject {
       timestamp: Date.now(),
     };
 
+    let anyDelivered = false;
     for (const backend of toDeliver) {
       try {
         const res = await fetch(backend.webhook_url, {
@@ -817,13 +818,15 @@ export class BotSession implements DurableObject {
         });
         if (!res.ok) {
           console.error(`[backend:${backend.id}] delivery failed: ${res.status}`);
+        } else {
+          anyDelivered = true;
         }
       } catch (err) {
         console.error(`[backend:${backend.id}] delivery error:`, err);
       }
     }
 
-    return true;
+    return anyDelivered;
   }
 
   private matchesBackend(backend: Backend, userId: string): boolean {

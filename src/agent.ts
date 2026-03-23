@@ -84,7 +84,9 @@ async function callAnthropic(
   const data = (await res.json()) as {
     content?: Array<{ type: string; text: string }>;
   };
-  return data.content?.find((c) => c.type === "text")?.text ?? "";
+  const text = data.content?.find((c) => c.type === "text")?.text;
+  if (!text) throw new Error("Anthropic returned empty or missing text content");
+  return text;
 }
 
 async function callOpenAICompat(
@@ -121,5 +123,7 @@ async function callOpenAICompat(
   const data = (await res.json()) as {
     choices?: Array<{ message?: { content?: string } }>;
   };
-  return data.choices?.[0]?.message?.content ?? "";
+  const content = data.choices?.[0]?.message?.content;
+  if (!content) throw new Error("API returned empty or missing content");
+  return content;
 }
