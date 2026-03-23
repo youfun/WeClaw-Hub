@@ -1,0 +1,125 @@
+// HTTP Agent — supports Anthropic Messages API and OpenAI-compatible APIs
+// Reference: ref/weclaw/agent/http_agent.go
+
+export interface Message {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface LLMConfig {
+  apiKey: string;
+  baseUrl?: string;
+  model?: string;
+  maxOutputTokens?: number;
+}
+
+const HISTORY_LIMIT = 100; // 50 turns = 100 messages
+const WECHAT_CHAR_LIMIT = 4000;
+const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
+export const DEFAULT_ANTHROPIC_MODEL = "claude-3-5-sonnet-20241022";
+export const DEFAULT_OPENAI_MODEL = "gpt-4o";
+const DEFAULT_SYSTEM = "你是一個有用的AI助手。";
+
+/** Trim history to last HISTORY_LIMIT messages, always starting with a user turn. */
+export function trimHistory(messages: Message[]): Message[] {
+  if (messages.length <= HISTORY_LIMIT) return messages;
+  const trimmed = messages.slice(messages.length - HISTORY_LIMIT);
+  const start = trimmed.findIndex((m) => m.role === "user");
+  return start > 0 ? trimmed.slice(start) : trimmed;
+}
+
+/** Call LLM and return reply text. Never throws — returns error string on failure. */
+export async function callClaude(
+  messages: Message[],
+  systemPrompt: string,
+  config: LLMConfig,
+): Promise<string> {
+  if (!config.apiKey) {
+    return "AI 无法回应：未配置 API Key";
+  }
+
+  try {
+    const reply = config.baseUrl
+      ? await callOpenAICompat(messages, systemPrompt, config)
+      : await callAnthropic(messages, systemPrompt, config);
+
+    if (!reply) return "AI 无法回应：接口返回空内容";
+    return reply.length > WECHAT_CHAR_LIMIT
+      ? reply.slice(0, WECHAT_CHAR_LIMIT - 3) + "..."
+      : reply;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[agent] callClaude error:", msg);
+    return `AI 无法回应：${msg}`;
+  }
+}
+
+async function callAnthropic(
+  messages: Message[],
+  systemPrompt: string,
+  config: LLMConfig,
+): Promise<string> {
+  const res = await fetch(ANTHROPIC_API_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": config.apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: config.model || DEFAULT_ANTHROPIC_MODEL,
+      max_tokens: config.maxOutputTokens ?? 4096,
+      system: systemPrompt || DEFAULT_SYSTEM,
+      messages: trimHistory(messages),
+    }),
+    signal: AbortSignal.timeout(55_000),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error(`[agent] Anthropic error ${res.status}:`, errText.slice(0, 200));
+    throw new Error(`Anthropic ${res.status}: ${errText.slice(0, 120)}`);
+  }
+
+  const data = (await res.json()) as {
+    content?: Array<{ type: string; text: string }>;
+  };
+  return data.content?.find((c) => c.type === "text")?.text ?? "";
+}
+
+async function callOpenAICompat(
+  messages: Message[],
+  systemPrompt: string,
+  config: LLMConfig,
+): Promise<string> {
+  const url = config.baseUrl!.replace(/\/$/, "") + "/chat/completions";
+  const oaiMessages = [
+    { role: "system", content: systemPrompt || DEFAULT_SYSTEM },
+    ...trimHistory(messages),
+  ];
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${config.apiKey}`,
+    },
+    body: JSON.stringify({
+      model: config.model || DEFAULT_OPENAI_MODEL,
+      max_tokens: config.maxOutputTokens ?? 4096,
+      messages: oaiMessages,
+    }),
+    signal: AbortSignal.timeout(55_000),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error(`[agent] OpenAI-compat error ${res.status}:`, errText.slice(0, 200));
+    throw new Error(`API ${res.status}: ${errText.slice(0, 120)}`);
+  }
+
+  const data = (await res.json()) as {
+    choices?: Array<{ message?: { content?: string } }>;
+  };
+  return data.choices?.[0]?.message?.content ?? "";
+}

@@ -1,0 +1,38 @@
+name = "weclaw-hub"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+
+# Durable Objects — 每個 Bot 賬號一個 DO 實例
+[durable_objects]
+bindings = [
+  { name = "BOT_SESSION", class_name = "BotSession" }
+]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["BotSession"]
+
+# KV Namespaces — 部署前需 wrangler kv namespace create 創建
+# 開發時可用 --local 自動創建本地 KV
+
+[[kv_namespaces]]
+binding = "BACKENDS"
+id = "3a3d8959734a4219b49bf1372fb9319e"
+
+[[kv_namespaces]]
+binding = "CONTACTS"
+id = "6f16673ab6824ea4963455608a195fad"
+
+[vars]
+SYSTEM_PROMPT = "你是一個有用的AI助手。"
+
+# ---- LLM 配置 ----
+# 方案一：Anthropic Claude（默認）
+# wrangler secret put ANTHROPIC_API_KEY
+#
+# 方案二：OpenAI-compatible（OpenRouter / 本地模型等）
+# LLM_BASE_URL = "https://openrouter.ai/api/v1"
+# LLM_MODEL    = "openai/gpt-4o"          # 省略則用 gpt-4o
+# wrangler secret put LLM_API_KEY          # OpenRouter 或其他 provider 的 key
+#
+# LLM_API_KEY 優先於 ANTHROPIC_API_KEY；LLM_MODEL 可覆蓋任一模式的默認模型。
