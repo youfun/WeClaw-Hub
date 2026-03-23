@@ -1,4 +1,4 @@
-export function loginPage(authToken: string, origin: string): Response {
+export function loginPage(origin: string): Response {
   const html = `<!DOCTYPE html>
 <html lang="zh">
 <head>
@@ -327,7 +327,7 @@ export function loginPage(authToken: string, origin: string): Response {
   </section>
 
   <script>
-    const AUTH = ${JSON.stringify(authToken)};
+    const AUTH = location.hash.slice(1);
     const ORIGIN = ${JSON.stringify(origin)};
 
     // ── Shared helpers ──────────────────────────────────────────────

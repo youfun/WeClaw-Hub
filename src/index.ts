@@ -69,11 +69,7 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
       return json({ error: "not configured" }, 503);
     }
 
-    if (pathname === "/login") {
-      if (!secureCompare((url.searchParams.get("token") ?? "").trim(), authToken)) {
-        return json({ error: "unauthorized" }, 401);
-      }
-    } else if (!secureCompare(getBearerToken(request).trim(), authToken)) {
+    if (!secureCompare(getBearerToken(request).trim(), authToken)) {
       return json({ error: "unauthorized" }, 401);
     }
 
@@ -82,7 +78,7 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
   }
 
   if (pathname === "/login" && method === "GET") {
-    return loginPage(authToken, new URL(request.url).origin);
+    return loginPage(new URL(request.url).origin);
   }
 
   if (pathname === "/login/qr" && method === "GET") {
@@ -434,7 +430,6 @@ async function readJson(request: Request): Promise<unknown> {
 
 function isManagementRoute(pathname: string): boolean {
   return (
-    pathname === "/login" ||
     pathname === "/login/qr" ||
     pathname === "/login/status" ||
     pathname.startsWith("/bot/") ||

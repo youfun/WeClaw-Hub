@@ -49,7 +49,7 @@ bun run dev    # http://localhost:8787
 
 ### 微信登录
 
-访问 `https://你的域名/login?token=你的AUTH_TOKEN`，扫码绑定微信账号。
+访问 `https://你的域名/login#你的AUTH_TOKEN`，扫码绑定微信账号。
 
 ### AI 对话
 
