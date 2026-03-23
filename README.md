@@ -122,7 +122,6 @@ Authorization: Bearer 你的AUTH_TOKEN
 
 ## API
 
-详见 [docs/GUIDE.md](docs/GUIDE.md) 的 API 参考章节。
 
 主要端点：
 
