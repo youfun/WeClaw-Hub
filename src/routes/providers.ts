@@ -64,15 +64,53 @@ providerRoutes.get("/api/providers/:id/models", async (c) => {
   }
 
   if (!provider.baseUrl) return c.json({ error: "missing baseUrl" }, 400);
-  const response = await fetch(`${provider.baseUrl.replace(/\/$/, "")}/v1/models`, {
-    headers: { Authorization: `Bearer ${resolveApiKey(c.env, provider.apiKey)}` },
-  });
-  if (!response.ok) return c.json({ error: "upstream_error" }, 502);
 
-  const payload = (await response.json()) as { data?: Array<{ id?: string }> };
-  return c.json({
-    models: (payload.data ?? []).flatMap((item) => (item.id ? [{ id: item.id, name: item.id }] : [])),
-  });
+  // baseUrl = 用户填写的完整路径，如 https://zenmux.ai/api/v1
+  // 直接追加 /models
+  const url = `${provider.baseUrl.replace(/\/$/, "")}/models`;
+
+  try {
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${resolveApiKey(c.env, provider.apiKey)}` },
+      signal: AbortSignal.timeout(15_000),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text().catch(() => "");
+      console.error(`[providers] fetch models failed: ${response.status}`, errText.slice(0, 200));
+      return c.json({ error: `供应商返回 ${response.status}，请检查 baseUrl 和 API Key` }, 502);
+    }
+
+    const contentType = response.headers.get("Content-Type") ?? "";
+    if (!contentType.includes("json")) {
+      return c.json({ error: "供应商未返回 JSON，请检查 baseUrl 是否正确" }, 502);
+    }
+
+    const payload = (await response.json()) as {
+      data?: Array<{
+        id?: string;
+        display_name?: string;
+        context_length?: number;
+        capabilities?: { reasoning?: boolean };
+      }>;
+    };
+
+    const models = (payload.data ?? []).flatMap((item) =>
+      item.id
+        ? [{
+            id: item.id,
+            name: item.display_name || item.id,
+            context_length: item.context_length ?? null,
+            reasoning: item.capabilities?.reasoning ?? false,
+          }]
+        : [],
+    );
+
+    return c.json({ models });
+  } catch (err) {
+    console.error("[providers] fetch models error:", err);
+    return c.json({ error: "拉取模型列表超时或网络错误" }, 502);
+  }
 });
 
 function loadProviders(env: Env): Promise<LlmProvider[]> {

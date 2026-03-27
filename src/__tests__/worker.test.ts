@@ -95,6 +95,70 @@ describe("auth middleware", () => {
     const res = await SELF.fetch("http://localhost/not-a-route");
     expect(res.status).toBe(404);
   });
+
+  it("GET /admin without auth redirects to /auth (HTML request)", async () => {
+    const res = await SELF.fetch("http://localhost/admin", {
+      headers: { Accept: "text/html" },
+      redirect: "manual",
+    });
+    expect(res.status).toBe(302);
+    expect(res.headers.get("Location")).toContain("/auth");
+  });
+
+  it("GET /admin without auth returns 401 for non-HTML request", async () => {
+    const res = await SELF.fetch("http://localhost/admin");
+    expect(res.status).toBe(401);
+  });
+
+  it("GET /admin with correct Bearer token returns 200", async () => {
+    const res = await get("/admin");
+    expect(res.status).toBe(200);
+  });
+
+  it("GET /admin with correct cookie returns 200", async () => {
+    const res = await SELF.fetch("http://localhost/admin", {
+      headers: { Cookie: "auth_token=test-token" },
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it("GET /admin with wrong cookie redirects to /auth (HTML request)", async () => {
+    const res = await SELF.fetch("http://localhost/admin", {
+      headers: { Accept: "text/html", Cookie: "auth_token=wrong" },
+      redirect: "manual",
+    });
+    expect(res.status).toBe(302);
+    expect(res.headers.get("Location")).toContain("/auth");
+  });
+
+  it("GET /auth returns 200 with token form", async () => {
+    const res = await SELF.fetch("http://localhost/auth");
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).toContain("WeClaw Hub");
+    expect(text).toContain("token");
+  });
+
+  it("POST /auth with correct token sets cookie and redirects", async () => {
+    const res = await SELF.fetch("http://localhost/auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: "token=test-token&redirect=%2Fadmin",
+      redirect: "manual",
+    });
+    expect(res.status).toBe(302);
+    expect(res.headers.get("Location")).toBe("/admin");
+    expect(res.headers.get("Set-Cookie")).toContain("auth_token=");
+  });
+
+  it("POST /auth with wrong token returns 401", async () => {
+    const res = await SELF.fetch("http://localhost/auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: "token=wrong&redirect=%2Fadmin",
+    });
+    expect(res.status).toBe(401);
+  });
 });
 
 // ── /api/webhooks ──────────────────────────────────────────────────────────

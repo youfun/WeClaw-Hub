@@ -179,10 +179,19 @@ function buildBotDetailScript(payload: string): string {
   return `
 const botDetail = ${payload};
 
+function getAuthToken() {
+  const match = document.cookie.match(/(?:^|;\\s*)auth_token=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : "";
+}
+
 async function api(method, path, body) {
+  const token = getAuthToken();
+  const headers = {};
+  if (token) headers["Authorization"] = "Bearer " + token;
+  if (body) headers["Content-Type"] = "application/json";
   const res = await fetch(path, {
     method,
-    headers: body ? { "Content-Type": "application/json" } : undefined,
+    headers,
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!res.ok) {

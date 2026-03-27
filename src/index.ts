@@ -24,6 +24,32 @@ const app = new Hono<{ Bindings: Env }>();
 // Register public routes (no authentication)
 app.route("/", publicRoutes);
 
+// Auth page (no authentication — it IS the auth step)
+app.get("/auth", (c) => {
+  const redirect = c.req.query("redirect") || "/admin";
+  return authFormPage(redirect);
+});
+
+app.post("/auth", async (c) => {
+  const body = await c.req.parseBody();
+  const token = String(body.token || "").trim();
+  const redirect = String(body.redirect || "/admin");
+  const authToken = c.env.AUTH_TOKEN?.trim() || "";
+
+  if (!authToken || !secureCompare(token, authToken)) {
+    return authFormPage(redirect, true);
+  }
+
+  const safeRedirect = redirect.startsWith("/") ? redirect : "/admin";
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: safeRedirect,
+      "Set-Cookie": `auth_token=${encodeURIComponent(token)}; Path=/; SameSite=Strict`,
+    },
+  });
+});
+
 // Apply authentication middleware to all subsequent routes
 app.use("*", authMiddleware);
 
@@ -232,6 +258,55 @@ async function fetchBotJson<T>(stub: DurableObjectStub, path: string, fallback: 
   } catch {
     return fallback;
   }
+}
+
+function secureCompare(left: string, right: string): boolean {
+  if (left.length !== right.length) return false;
+  let result = 0;
+  for (let i = 0; i < left.length; i++) {
+    result |= left.charCodeAt(i) ^ right.charCodeAt(i);
+  }
+  return result === 0;
+}
+
+function authFormPage(redirect: string, failed = false): Response {
+  const safeRedirect = redirect.startsWith("/") ? redirect : "/admin";
+  const html = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>访问验证 · WeClaw Hub</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:"Segoe UI","PingFang SC",sans-serif;background:#f4efe6;min-height:100vh;display:grid;place-items:center}
+.card{background:#fffaf2;border:1px solid rgba(74,57,44,0.12);border-radius:24px;padding:32px 36px;width:min(400px,calc(100% - 32px));box-shadow:0 24px 60px rgba(61,39,22,0.12)}
+h1{margin:0 0 6px;font-size:24px}
+p{color:#6f6258;margin:0 0 24px;font-size:14px}
+label{display:block;font-size:13px;color:#6f6258;margin-bottom:6px}
+input{width:100%;border:1px solid rgba(74,57,44,0.12);border-radius:12px;padding:11px 14px;font:inherit;background:#fff}
+button{margin-top:16px;width:100%;padding:13px;border-radius:999px;border:none;background:linear-gradient(135deg,#b6542d,#7f3014);color:#fff;font:inherit;cursor:pointer}
+.err{color:#b6542d;font-size:13px;margin-top:12px}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>WeClaw Hub</h1>
+  <p>请输入访问令牌以继续。</p>
+  <form method="POST" action="/auth">
+    <input type="hidden" name="redirect" value="${safeRedirect.replace(/"/g, "&quot;")}" />
+    <label>访问令牌</label>
+    <input type="password" name="token" autofocus autocomplete="current-password" required />
+    <button type="submit">确认</button>
+    ${failed ? '<p class="err">令牌不正确，请重试。</p>' : ""}
+  </form>
+</div>
+</body>
+</html>`;
+  return new Response(html, {
+    status: failed ? 401 : 200,
+    headers: { "Content-Type": "text/html; charset=utf-8" },
+  });
 }
 
 function sanitizeKeySegment(input: string): string | null {

@@ -5,7 +5,9 @@ import type { Context, Next } from "hono";
 import type { Env } from "../env.ts";
 
 export async function authMiddleware(c: Context<{ Bindings: Env }>, next: Next) {
-  if (!isManagementPath(new URL(c.req.url).pathname)) {
+  const pathname = new URL(c.req.url).pathname;
+
+  if (!isManagementPath(pathname)) {
     await next();
     return;
   }
@@ -13,12 +15,20 @@ export async function authMiddleware(c: Context<{ Bindings: Env }>, next: Next) 
   const authToken = c.env.AUTH_TOKEN?.trim() || "";
 
   if (!authToken) {
+    // For HTML pages, redirect to /auth; for API, return JSON error
+    if (isHtmlRequest(c)) {
+      return c.redirect(`/auth?redirect=${encodeURIComponent(pathname)}`);
+    }
     return c.json({ error: "not configured" }, 503);
   }
 
-  const bearerToken = getBearerToken(c.req.header("Authorization") || "");
+  const requestToken = getBearerToken(c.req.header("Authorization") || "")
+    || getCookieToken(c.req.header("Cookie") || "");
 
-  if (!secureCompare(bearerToken.trim(), authToken)) {
+  if (!secureCompare(requestToken.trim(), authToken)) {
+    if (isHtmlRequest(c)) {
+      return c.redirect(`/auth?redirect=${encodeURIComponent(pathname)}`);
+    }
     return c.json({ error: "unauthorized" }, 401);
   }
 
@@ -30,14 +40,25 @@ function isManagementPath(pathname: string): boolean {
     pathname === "/login" ||
     pathname === "/login/qr" ||
     pathname === "/login/status" ||
+    pathname === "/admin" ||
+    pathname.startsWith("/admin/") ||
     pathname.startsWith("/api/") ||
     pathname.startsWith("/bot/")
   );
 }
 
+function isHtmlRequest(c: Context): boolean {
+  return (c.req.header("Accept") || "").includes("text/html");
+}
+
 function getBearerToken(auth: string): string {
   if (!auth.startsWith("Bearer ")) return "";
   return auth.slice(7);
+}
+
+function getCookieToken(cookieHeader: string): string {
+  const match = cookieHeader.match(/(?:^|;\s*)auth_token=([^;]+)/);
+  return match ? decodeURIComponent(match[1]!) : "";
 }
 
 function secureCompare(left: string, right: string): boolean {

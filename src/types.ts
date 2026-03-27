@@ -108,6 +108,8 @@ export interface CustomModel {
 export interface ProviderModelOption {
   id: string;
   name: string;
+  context_length?: number | null;
+  reasoning?: boolean;
 }
 
 export interface ToolParam {
