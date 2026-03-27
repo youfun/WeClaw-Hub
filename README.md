@@ -58,8 +58,13 @@ bun run dev    # http://localhost:8787
 | 命令 | 说明 |
 |------|------|
 | `/help` | 帮助 |
+| `/mode` | 查看当前模式 |
+| `/mode family` | 自动按问题复杂度选模型 |
+| `/mode manual` | 切回手动选模 |
 | `/model list` | 查看可用模型 |
 | `/model <名称或编号>` | 切换模型 |
+| `/memory` | 查看当前 bot 记忆 |
+| `/tasks` | 查看定时任务 |
 | `/clear` | 清空对话历史 |
 | `/status` | 查看 bot 状态 |
 
@@ -106,7 +111,9 @@ Authorization: Bearer 你的AUTH_TOKEN
 
 ## LLM 配置
 
-**管理页面配置**（推荐）：在 `/login` 页面的「模型配置」卡片中添加，支持多模型、一键切换。
+**管理页面配置**（推荐）：在 `/login` 页面的「供应商管理」与「模型配置」卡片中添加，先建 Provider，再导入/创建 Model。
+
+默认模式为 `family`：普通问题使用模型列表首项，复杂问题自动切到末项。切换到 `manual` 后，微信端 `/model` 命令保持原有手动选模行为。
 
 **环境变量回退**：
 
@@ -118,7 +125,7 @@ Authorization: Bearer 你的AUTH_TOKEN
 | `LLM_MODEL` | 覆盖默认模型 |
 | `SYSTEM_PROMPT` | 自定义系统提示词 |
 
-自定义模型的 `apiKey` 支持 `${ENV_VAR}` 插值引用 wrangler secrets。
+Provider 的 `apiKey` 支持 `${ENV_VAR}` 插值引用 wrangler secrets。
 
 ## API
 

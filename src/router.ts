@@ -6,12 +6,18 @@ export type RouterAction =
   | { type: "status" }
   | { type: "clear" }
   | { type: "model"; args: string }
+  | { type: "mode"; args: string }
+  | { type: "memory" }
+  | { type: "tasks"; args: string }
   | { type: "agent"; message: string };
 
 export const HELP_TEXT = [
   "支持的命令：",
   "/claude [消息] — 与 Claude 对话",
   "/model — 查看/切换模型",
+  "/mode [family|manual] — 切换自动/手动选模",
+  "/memory — 查看当前记忆",
+  "/tasks — 查看定时任务",
   "/status — 查看 Bot 状态",
   "/clear — 清空对话历史",
   "/help — 显示帮助",
@@ -28,6 +34,11 @@ export function parseRoute(text: string): RouterAction {
   if (lower === "/clear") return { type: "clear" };
   if (lower === "/model") return { type: "model", args: "" };
   if (lower.startsWith("/model ")) return { type: "model", args: trimmed.slice("/model ".length).trim() };
+  if (lower === "/mode") return { type: "mode", args: "" };
+  if (lower.startsWith("/mode ")) return { type: "mode", args: trimmed.slice("/mode ".length).trim() };
+  if (lower === "/memory") return { type: "memory" };
+  if (lower === "/tasks") return { type: "tasks", args: "" };
+  if (lower.startsWith("/tasks ")) return { type: "tasks", args: trimmed.slice("/tasks ".length).trim() };
 
   if (lower.startsWith("/claude ")) {
     return { type: "agent", message: trimmed.slice("/claude ".length).trim() };

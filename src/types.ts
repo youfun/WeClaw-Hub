@@ -86,15 +86,60 @@ export interface SendMessageResponse {
   errmsg?: string;
 }
 
-// ---- LLM model config (stored in KV as llm:models array) ----
+// ---- LLM config (stored in KV) ----
+
+export interface LlmProvider {
+  id: string;
+  name: string;
+  type: "anthropic" | "openai-compat";
+  baseUrl?: string;
+  apiKey: string;
+  defaultMaxOutputTokens?: number;
+}
 
 export interface CustomModel {
-  model: string;          // model ID sent to API
-  displayName: string;    // unique name — used in UI, reply label, and /model command
-  baseUrl?: string;       // OpenAI-compat URL; omit = Anthropic native
-  apiKey: string;         // supports ${ENV_VAR} interpolation
-  provider: "anthropic" | "openai-compat";
+  model: string;
+  displayName: string;
+  providerId: string;
+  role?: "daily" | "complex" | null;
   maxOutputTokens?: number;
+}
+
+export interface ProviderModelOption {
+  id: string;
+  name: string;
+}
+
+export interface ToolParam {
+  name: string;
+  type: "string" | "number" | "boolean" | "text";
+  required: boolean;
+  label: string;
+  placeholder?: string;
+}
+
+export interface SystemTool {
+  id: string;
+  name: string;
+  description: string;
+  source: "builtin" | "mcp";
+  params: ToolParam[];
+}
+
+export interface ScheduledTask {
+  id: string;
+  name: string;
+  enabled: boolean;
+  schedule: {
+    type: "cron" | "interval";
+    cron?: string;
+    interval_ms?: number;
+  };
+  tool_id: string;
+  tool_params: Record<string, unknown>;
+  last_run_at?: number;
+  next_run_at?: number;
+  created_at: number;
 }
 
 // ---- Typing / Config types ----

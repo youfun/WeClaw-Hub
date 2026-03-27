@@ -1,5 +1,6 @@
 import { parseGenericMessage } from "./generic.ts";
 import { parseGitHubMessage } from "./github.ts";
+import { parseTapdMessage } from "./tapd.ts";
 
 function normalizeSourceName(source: string): string {
   if (!source) return "Webhook";
@@ -21,6 +22,10 @@ export function parseWebhookMessage(
 
   if (normalized === "github") {
     return parseGitHubMessage(payload, headers);
+  }
+
+  if (normalized === "tapd") {
+    return parseTapdMessage(payload);
   }
 
   return parseGenericMessage(normalizeSourceName(source), payload);
