@@ -33,6 +33,26 @@ describe("parseRoute", () => {
     });
   });
 
+  it("returns mode with empty args for /mode alone", () => {
+    expect(parseRoute("/mode")).toEqual({ type: "mode", args: "" });
+  });
+
+  it("returns mode with args for /mode family", () => {
+    expect(parseRoute("/mode family")).toEqual({ type: "mode", args: "family" });
+  });
+
+  it("returns memory for /memory", () => {
+    expect(parseRoute("/memory")).toEqual({ type: "memory" });
+  });
+
+  it("returns tasks for /tasks", () => {
+    expect(parseRoute("/tasks")).toEqual({ type: "tasks", args: "" });
+  });
+
+  it("returns tasks with args for /tasks off abc", () => {
+    expect(parseRoute("/tasks off abc")).toEqual({ type: "tasks", args: "off abc" });
+  });
+
   it("returns agent with message for /claude <msg>", () => {
     expect(parseRoute("/claude hello world")).toEqual({
       type: "agent",

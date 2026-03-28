@@ -21,6 +21,7 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "hono": "^4.12.9",
     "qrcode-generator": "^2.0.4"
   }
 }

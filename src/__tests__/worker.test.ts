@@ -95,6 +95,70 @@ describe("auth middleware", () => {
     const res = await SELF.fetch("http://localhost/not-a-route");
     expect(res.status).toBe(404);
   });
+
+  it("GET /admin without auth redirects to /auth (HTML request)", async () => {
+    const res = await SELF.fetch("http://localhost/admin", {
+      headers: { Accept: "text/html" },
+      redirect: "manual",
+    });
+    expect(res.status).toBe(302);
+    expect(res.headers.get("Location")).toContain("/auth");
+  });
+
+  it("GET /admin without auth returns 401 for non-HTML request", async () => {
+    const res = await SELF.fetch("http://localhost/admin");
+    expect(res.status).toBe(401);
+  });
+
+  it("GET /admin with correct Bearer token returns 200", async () => {
+    const res = await get("/admin");
+    expect(res.status).toBe(200);
+  });
+
+  it("GET /admin with correct cookie returns 200", async () => {
+    const res = await SELF.fetch("http://localhost/admin", {
+      headers: { Cookie: "auth_token=test-token" },
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it("GET /admin with wrong cookie redirects to /auth (HTML request)", async () => {
+    const res = await SELF.fetch("http://localhost/admin", {
+      headers: { Accept: "text/html", Cookie: "auth_token=wrong" },
+      redirect: "manual",
+    });
+    expect(res.status).toBe(302);
+    expect(res.headers.get("Location")).toContain("/auth");
+  });
+
+  it("GET /auth returns 200 with token form", async () => {
+    const res = await SELF.fetch("http://localhost/auth");
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).toContain("WeClaw Hub");
+    expect(text).toContain("token");
+  });
+
+  it("POST /auth with correct token sets cookie and redirects", async () => {
+    const res = await SELF.fetch("http://localhost/auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: "token=test-token&redirect=%2Fadmin",
+      redirect: "manual",
+    });
+    expect(res.status).toBe(302);
+    expect(res.headers.get("Location")).toBe("/admin");
+    expect(res.headers.get("Set-Cookie")).toContain("auth_token=");
+  });
+
+  it("POST /auth with wrong token returns 401", async () => {
+    const res = await SELF.fetch("http://localhost/auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: "token=wrong&redirect=%2Fadmin",
+    });
+    expect(res.status).toBe(401);
+  });
 });
 
 // ── /api/webhooks ──────────────────────────────────────────────────────────
@@ -301,13 +365,112 @@ describe("POST /webhooks/:path", () => {
   });
 });
 
+// ── /api/providers ─────────────────────────────────────────────────────────
+
+describe("/api/providers CRUD", () => {
+  beforeEach(async () => {
+    const kv = (env as unknown as { BACKENDS: KVNamespace }).BACKENDS;
+    await kv.delete("llm:providers");
+  });
+
+  it("GET /api/providers returns empty list initially", async () => {
+    const res = await get("/api/providers");
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { providers: unknown[] };
+    expect(data.providers).toHaveLength(0);
+  });
+
+  it("POST /api/providers creates a provider and masks apiKey in response", async () => {
+    const res = await post("/api/providers", {
+      id: "anthropic-direct",
+      name: "Anthropic Direct",
+      type: "anthropic",
+      apiKey: "${ANTHROPIC_API_KEY}",
+      defaultMaxOutputTokens: 4096,
+    });
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { ok: boolean; provider: Record<string, unknown> };
+    expect(data.ok).toBe(true);
+    expect(data.provider.id).toBe("anthropic-direct");
+    expect(data.provider.apiKey).toBeUndefined();
+    expect(data.provider.hasApiKey).toBe(true);
+  });
+
+  it("GET /api/providers/:id/models returns built-in Anthropic models", async () => {
+    await post("/api/providers", {
+      id: "anthropic-direct",
+      name: "Anthropic Direct",
+      type: "anthropic",
+      apiKey: "${ANTHROPIC_API_KEY}",
+    });
+    const res = await get("/api/providers/anthropic-direct/models");
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { models: Array<{ id: string; name: string }> };
+    expect(data.models.some((model) => model.id === "claude-sonnet-4-5-20250514")).toBe(true);
+  });
+
+  it("PUT /api/providers/:id updates provider fields", async () => {
+    await post("/api/providers", {
+      id: "openrouter",
+      name: "OpenRouter",
+      type: "openai-compat",
+      baseUrl: "https://openrouter.ai/api",
+      apiKey: "${OPENROUTER_API_KEY}",
+    });
+    const res = await put("/api/providers/openrouter", {
+      name: "OpenRouter Main",
+      baseUrl: "https://openrouter.ai/api/v1",
+      defaultMaxOutputTokens: 2048,
+    });
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { provider: Record<string, unknown> };
+    expect(data.provider.name).toBe("OpenRouter Main");
+    expect(data.provider.baseUrl).toBe("https://openrouter.ai/api/v1");
+    expect(data.provider.defaultMaxOutputTokens).toBe(2048);
+  });
+
+  it("DELETE /api/providers/:id removes provider", async () => {
+    await post("/api/providers", {
+      id: "openrouter",
+      name: "OpenRouter",
+      type: "openai-compat",
+      baseUrl: "https://openrouter.ai/api/v1",
+      apiKey: "${OPENROUTER_API_KEY}",
+    });
+    const res = await del("/api/providers/openrouter");
+    expect(res.status).toBe(200);
+    const list = await get("/api/providers");
+    const data = (await list.json()) as { providers: Array<{ id: string }> };
+    expect(data.providers.some((provider) => provider.id === "openrouter")).toBe(false);
+  });
+});
+
 // ── /api/models ────────────────────────────────────────────────────────────
 
 describe("/api/models CRUD", () => {
   beforeEach(async () => {
     const kv = (env as unknown as { BACKENDS: KVNamespace }).BACKENDS;
+    await kv.delete("llm:providers");
     await kv.delete("llm:models");
     await kv.delete("llm:active");
+
+    await kv.put("llm:providers", JSON.stringify([
+      {
+        id: "anthropic-direct",
+        name: "Anthropic Direct",
+        type: "anthropic",
+        apiKey: "${ANTHROPIC_API_KEY}",
+        defaultMaxOutputTokens: 4096,
+      },
+      {
+        id: "openrouter",
+        name: "OpenRouter",
+        type: "openai-compat",
+        baseUrl: "https://openrouter.ai/api/v1",
+        apiKey: "${OPENROUTER_API_KEY}",
+        defaultMaxOutputTokens: 2048,
+      },
+    ]));
   });
 
   it("GET /api/models returns empty list initially", async () => {
@@ -320,36 +483,43 @@ describe("/api/models CRUD", () => {
 
   it("POST /api/models adds a model (apiKey masked in response)", async () => {
     const res = await post("/api/models", {
-      model: "claude-3-5-sonnet-20241022",
+      model: "claude-sonnet-4-5-20250514",
       displayName: "Sonnet",
-      provider: "anthropic",
-      apiKey: "sk-test-key",
+      providerId: "anthropic-direct",
+      role: "complex",
     });
     expect(res.status).toBe(200);
     const data = (await res.json()) as { ok: boolean; model: Record<string, unknown> };
     expect(data.ok).toBe(true);
-    expect(data.model.hasApiKey).toBe(true);
-    expect(data.model.apiKey).toBeUndefined();
+    expect(data.model.providerId).toBe("anthropic-direct");
+    expect(data.model.role).toBe("complex");
   });
 
   it("POST /api/models rejects duplicate displayName (409)", async () => {
     await post("/api/models", {
       model: "m",
       displayName: "Dupe",
-      provider: "anthropic",
-      apiKey: "k",
+      providerId: "anthropic-direct",
     });
     const res = await post("/api/models", {
       model: "m2",
       displayName: "Dupe",
-      provider: "anthropic",
-      apiKey: "k2",
+      providerId: "anthropic-direct",
     });
     expect(res.status).toBe(409);
   });
 
-  it("POST /api/models rejects missing required fields (400)", async () => {
+  it("POST /api/models rejects missing providerId (400)", async () => {
     const res = await post("/api/models", { model: "m" });
+    expect(res.status).toBe(400);
+  });
+
+  it("POST /api/models rejects unknown providerId (400)", async () => {
+    const res = await post("/api/models", {
+      model: "m",
+      displayName: "Broken",
+      providerId: "missing-provider",
+    });
     expect(res.status).toBe(400);
   });
 
@@ -357,8 +527,7 @@ describe("/api/models CRUD", () => {
     await post("/api/models", {
       model: "m",
       displayName: "MyModel",
-      provider: "anthropic",
-      apiKey: "k",
+      providerId: "anthropic-direct",
     });
     const res = await put("/api/models/active", { name: "MyModel" });
     expect(res.status).toBe(200);
@@ -375,27 +544,47 @@ describe("/api/models CRUD", () => {
     await post("/api/models", {
       model: "old-model-id",
       displayName: "OldName",
-      provider: "anthropic",
-      apiKey: "k",
+      providerId: "anthropic-direct",
     });
     const res = await put("/api/models/OldName", {
       model: "new-model-id",
       displayName: "NewName",
-      provider: "anthropic",
-      apiKey: "k",
+      providerId: "openrouter",
+      role: "daily",
+      maxOutputTokens: 1024,
     });
     expect(res.status).toBe(200);
     const data = (await res.json()) as { model: Record<string, unknown> };
     expect(data.model.displayName).toBe("NewName");
     expect(data.model.model).toBe("new-model-id");
+    expect(data.model.providerId).toBe("openrouter");
+    expect(data.model.role).toBe("daily");
+  });
+
+  it("POST /api/models/import imports selected models and skips duplicates", async () => {
+    await post("/api/models", {
+      model: "claude-sonnet-4-5-20250514",
+      displayName: "Claude Sonnet 4.5",
+      providerId: "anthropic-direct",
+    });
+    const res = await post("/api/models/import", {
+      providerId: "anthropic-direct",
+      models: [
+        { model: "claude-sonnet-4-5-20250514", displayName: "Claude Sonnet 4.5" },
+        { model: "claude-3-5-haiku-20241022", displayName: "Claude 3.5 Haiku" },
+      ],
+    });
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { imported: number; skipped: number };
+    expect(data.imported).toBe(1);
+    expect(data.skipped).toBe(1);
   });
 
   it("DELETE /api/models/:name removes the model", async () => {
     await post("/api/models", {
       model: "m",
       displayName: "ToDelete",
-      provider: "anthropic",
-      apiKey: "k",
+      providerId: "anthropic-direct",
     });
     const res = await del("/api/models/ToDelete");
     expect(res.status).toBe(200);
@@ -408,14 +597,43 @@ describe("/api/models CRUD", () => {
     await post("/api/models", {
       model: "m",
       displayName: "Masked",
-      provider: "anthropic",
-      apiKey: "super-secret",
+      providerId: "anthropic-direct",
     });
     const res = await get("/api/models");
     const data = (await res.json()) as { models: Array<Record<string, unknown>> };
     const model = data.models.find((m) => m.displayName === "Masked")!;
+    expect(model.providerId).toBe("anthropic-direct");
+    expect(model.provider).toBeUndefined();
     expect(model.apiKey).toBeUndefined();
-    expect(model.hasApiKey).toBe(true);
+  });
+});
+
+// ── /api/tools ─────────────────────────────────────────────────────────────
+
+describe("GET /api/tools", () => {
+  it("returns builtin tools with dynamic params schema", async () => {
+    const res = await get("/api/tools");
+    expect(res.status).toBe(200);
+
+    const data = (await res.json()) as {
+      tools: Array<{
+        id: string;
+        source: string;
+        params: Array<{ name: string; type: string; required: boolean }>;
+      }>;
+    };
+
+    expect(data.tools.map((tool) => tool.id)).toEqual([
+      "send_message",
+      "agent_prompt",
+      "fetch_analyze",
+    ]);
+    expect(data.tools.every((tool) => tool.source === "builtin")).toBe(true);
+    expect(data.tools.find((tool) => tool.id === "fetch_analyze")?.params).toEqual([
+      expect.objectContaining({ name: "url", type: "string", required: true }),
+      expect.objectContaining({ name: "prompt", type: "text", required: true }),
+      expect.objectContaining({ name: "headers", type: "text", required: false }),
+    ]);
   });
 });
 
@@ -468,6 +686,142 @@ describe("/api/backends CRUD", () => {
     });
     const res = await del("/api/backends/del-me");
     expect(res.status).toBe(200);
+  });
+});
+
+// ── /bot/:id/settings ──────────────────────────────────────────────────────
+
+describe("/bot/:id/settings", () => {
+  it("returns structured defaults and supports partial updates", async () => {
+    const botId = "settings-bot";
+
+    const initial = await get(`/bot/${botId}/settings`);
+    expect(initial.status).toBe(200);
+    const initialData = (await initial.json()) as {
+      remark: string;
+      keepalive: boolean;
+      agent_mode: string;
+      accept_webhook: boolean;
+    };
+    expect(initialData.agent_mode).toBe("family");
+    expect(initialData.keepalive).toBe(false);
+    expect(initialData.accept_webhook).toBe(true);
+
+    const patched = await patch(`/bot/${botId}/settings`, {
+      remark: "Primary bot",
+      keepalive: true,
+      agent_mode: "manual",
+      active_model: "Claude Sonnet",
+      accept_webhook: false,
+    });
+    expect(patched.status).toBe(200);
+
+    const after = await get(`/bot/${botId}/settings`);
+    const afterData = (await after.json()) as {
+      remark: string;
+      keepalive: boolean;
+      agent_mode: string;
+      active_model?: string;
+      accept_webhook: boolean;
+    };
+    expect(afterData.remark).toBe("Primary bot");
+    expect(afterData.keepalive).toBe(true);
+    expect(afterData.agent_mode).toBe("manual");
+    expect(afterData.active_model).toBe("Claude Sonnet");
+    expect(afterData.accept_webhook).toBe(false);
+  });
+});
+
+// ── /bot/:id/status ────────────────────────────────────────────────────────
+
+describe("/bot/:id/status", () => {
+  it("reflects the current mode in status output", async () => {
+    const botId = "status-bot";
+    await patch(`/bot/${botId}/settings`, { agent_mode: "manual", remark: "Status Bot" });
+
+    const res = await get(`/bot/${botId}/status`);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { agent_mode: string; remark?: string };
+    expect(data.agent_mode).toBe("manual");
+  });
+});
+
+// ── /bot/:id/tasks ─────────────────────────────────────────────────────────
+
+describe("/bot/:id/tasks", () => {
+  it("creates, updates, lists, and deletes scheduled tasks", async () => {
+    const botId = "tasks-bot";
+
+    const created = await post(`/bot/${botId}/tasks`, {
+      id: "daily-reminder",
+      name: "Daily Reminder",
+      enabled: true,
+      schedule: { type: "cron", cron: "0 21 * * *" },
+      tool_id: "send_message",
+      tool_params: { text: "晚安" },
+    });
+    expect(created.status).toBe(200);
+    const createdData = (await created.json()) as {
+      task: { id: string; tool_id: string; tool_params: { text: string }; next_run_at?: number };
+    };
+    expect(createdData.task.id).toBe("daily-reminder");
+    expect(createdData.task.tool_id).toBe("send_message");
+    expect(createdData.task.tool_params.text).toBe("晚安");
+    expect(typeof createdData.task.next_run_at).toBe("number");
+
+    const list = await get(`/bot/${botId}/tasks`);
+    const listData = (await list.json()) as {
+      tasks: Array<{ id: string; enabled: boolean; tool_id: string; tool_params: { text: string } }>;
+    };
+    expect(listData.tasks.some((task) => task.id === "daily-reminder")).toBe(true);
+    expect(listData.tasks.find((task) => task.id === "daily-reminder")?.tool_id).toBe("send_message");
+
+    const updated = await put(`/bot/${botId}/tasks/daily-reminder`, {
+      enabled: false,
+      name: "Daily Reminder v2",
+      tool_id: "agent_prompt",
+      tool_params: { prompt: "提醒我早点休息" },
+    });
+    expect(updated.status).toBe(200);
+    const updatedData = (await updated.json()) as {
+      task: { enabled: boolean; name: string; tool_id: string; tool_params: { prompt: string } };
+    };
+    expect(updatedData.task.enabled).toBe(false);
+    expect(updatedData.task.name).toBe("Daily Reminder v2");
+    expect(updatedData.task.tool_id).toBe("agent_prompt");
+    expect(updatedData.task.tool_params.prompt).toBe("提醒我早点休息");
+
+    const deleted = await del(`/bot/${botId}/tasks/daily-reminder`);
+    expect(deleted.status).toBe(200);
+
+    const afterDelete = await get(`/bot/${botId}/tasks`);
+    const afterData = (await afterDelete.json()) as { tasks: Array<{ id: string }> };
+    expect(afterData.tasks.some((task) => task.id === "daily-reminder")).toBe(false);
+  });
+});
+
+// ── Admin pages ────────────────────────────────────────────────────────────
+
+describe("admin pages", () => {
+  it("GET /login returns HTML", async () => {
+    const res = await get("/login");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/html");
+    expect(await res.text()).toContain("WeClaw Hub");
+  });
+
+  it("GET /admin returns admin dashboard HTML", async () => {
+    const res = await get("/admin");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/html");
+    expect(await res.text()).toContain("机器人总览");
+  });
+
+  it("GET /admin/bot/:id returns bot detail HTML", async () => {
+    const res = await get("/admin/bot/demo-bot");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/html");
+    expect(await res.text()).toContain("定时任务");
   });
 });
 

@@ -19,6 +19,31 @@ const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 export const DEFAULT_ANTHROPIC_MODEL = "claude-3-5-sonnet-20241022";
 export const DEFAULT_OPENAI_MODEL = "gpt-4o";
 const DEFAULT_SYSTEM = "你是一個有用的AI助手。";
+const DIFFICULT_QUERY_KEYWORDS = [
+  "分析", "报告", "体检", "诊断", "法律", "合同", "翻译",
+  "编程", "代码", "计算", "数学", "论文", "研究", "策略",
+  "规划", "设计", "架构", "优化", "比较", "评估", "总结",
+  "详细", "复杂", "为什么", "怎么办", "解释一下",
+  "心脏", "血压", "血糖", "彩超", "化验", "CT", "MRI",
+  "保险", "理赔", "退款", "投诉",
+  "药", "用药", "服药", "停药", "换药", "减药", "加药",
+  "药片", "胶囊", "药水", "药膏", "处方",
+  "副作用", "不良反应", "过敏", "禁忌",
+  "头孢", "阿莫西林", "布洛芬", "阿司匹林", "降压药", "降糖药",
+  "抗生素", "消炎药", "止痛药", "感冒药", "维生素",
+  "剂量", "药物", "中药", "西药",
+];
+
+export function isDifficultQuery(text: string): boolean {
+  if (text.length > 300) return true;
+
+  for (const keyword of DIFFICULT_QUERY_KEYWORDS) {
+    if (text.includes(keyword)) return true;
+  }
+
+  const qCount = (text.match(/[？?]/g) ?? []).length;
+  return qCount >= 2;
+}
 
 /** Trim history to last HISTORY_LIMIT messages, always starting with a user turn. */
 export function trimHistory(messages: Message[]): Message[] {

@@ -39,3 +39,5 @@ docs
 .DS_Store
 .playwright-mcp/*.log
 ref
+
+.kiro/

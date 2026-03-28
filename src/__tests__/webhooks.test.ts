@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { parseGitHubMessage } from "../webhooks/github.ts";
 import { parseGenericMessage } from "../webhooks/generic.ts";
 import { parseWebhookMessage } from "../webhooks/index.ts";
+import { parseTapdMessage } from "../webhooks/tapd.ts";
 
 // ── GitHub parser ──────────────────────────────────────────────────────────
 
@@ -132,6 +133,80 @@ describe("parseGenericMessage", () => {
   });
 });
 
+// ── TAPD parser ────────────────────────────────────────────────────────────
+
+describe("parseTapdMessage", () => {
+  const base = {
+    workspace_id: "12345",
+    current_user: "alice",
+    id: "1167870009001000028",
+  };
+
+  it("returns null for non-object payload", () => {
+    expect(parseTapdMessage("not an object")).toBeNull();
+  });
+
+  it("formats story create event", () => {
+    const msg = parseTapdMessage({ ...base, event: "story::create" });
+    expect(msg).toBe("[TAPD] 项目:12345 需求 创建 by alice (ID: 1167870009001000028)");
+  });
+
+  it("formats story update event", () => {
+    const msg = parseTapdMessage({ ...base, event: "story::update" });
+    expect(msg).toBe("[TAPD] 项目:12345 需求 更新 by alice (ID: 1167870009001000028)");
+  });
+
+  it("formats story status_change event", () => {
+    const msg = parseTapdMessage({ ...base, event: "story::status_change" });
+    expect(msg).toBe("[TAPD] 项目:12345 需求 状态变更 by alice (ID: 1167870009001000028)");
+  });
+
+  it("formats bug create event", () => {
+    const msg = parseTapdMessage({ ...base, event: "bug::create" });
+    expect(msg).toBe("[TAPD] 项目:12345 缺陷 创建 by alice (ID: 1167870009001000028)");
+  });
+
+  it("formats bug status_change event", () => {
+    const msg = parseTapdMessage({ ...base, event: "bug::status_change" });
+    expect(msg).toBe("[TAPD] 项目:12345 缺陷 状态变更 by alice (ID: 1167870009001000028)");
+  });
+
+  it("formats task event", () => {
+    const msg = parseTapdMessage({ ...base, event: "task::update" });
+    expect(msg).toBe("[TAPD] 项目:12345 任务 更新 by alice (ID: 1167870009001000028)");
+  });
+
+  it("formats release event", () => {
+    const msg = parseTapdMessage({ ...base, event: "release::create" });
+    expect(msg).toBe("[TAPD] 项目:12345 发布 创建 by alice (ID: 1167870009001000028)");
+  });
+
+  it("formats iteration event", () => {
+    const msg = parseTapdMessage({ ...base, event: "iteration::update" });
+    expect(msg).toBe("[TAPD] 项目:12345 迭代 更新 by alice (ID: 1167870009001000028)");
+  });
+
+  it("handles unknown object type gracefully", () => {
+    const msg = parseTapdMessage({ ...base, event: "unknown_obj::create" });
+    expect(msg).toBe("[TAPD] 项目:12345 unknown_obj 创建 by alice (ID: 1167870009001000028)");
+  });
+
+  it("handles unknown action gracefully", () => {
+    const msg = parseTapdMessage({ ...base, event: "story::delete" });
+    expect(msg).toBe("[TAPD] 项目:12345 需求 delete by alice (ID: 1167870009001000028)");
+  });
+
+  it("omits current_user when missing", () => {
+    const msg = parseTapdMessage({ workspace_id: "99", id: "42", event: "bug::create" });
+    expect(msg).toBe("[TAPD] 项目:99 缺陷 创建 (ID: 42)");
+  });
+
+  it("falls back gracefully when event field missing", () => {
+    const msg = parseTapdMessage({ workspace_id: "99", current_user: "bob", id: "1" });
+    expect(msg).toBe("[TAPD] 项目:99 事件 by bob (ID: 1)");
+  });
+});
+
 // ── Webhook index dispatcher ───────────────────────────────────────────────
 
 describe("parseWebhookMessage", () => {
@@ -156,5 +231,11 @@ describe("parseWebhookMessage", () => {
   it("handles empty source as Webhook label", () => {
     const msg = parseWebhookMessage("", { text: "hi" }, new Headers());
     expect(msg).toBe("[Webhook] hi");
+  });
+
+  it("dispatches tapd source to TAPD parser", () => {
+    const payload = { workspace_id: "123", current_user: "bob", id: "456", event: "story::create" };
+    const msg = parseWebhookMessage("tapd", payload, new Headers());
+    expect(msg).toBe("[TAPD] 项目:123 需求 创建 by bob (ID: 456)");
   });
 });

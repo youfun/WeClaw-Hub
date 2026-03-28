@@ -86,15 +86,62 @@ export interface SendMessageResponse {
   errmsg?: string;
 }
 
-// ---- LLM model config (stored in KV as llm:models array) ----
+// ---- LLM config (stored in KV) ----
+
+export interface LlmProvider {
+  id: string;
+  name: string;
+  type: "anthropic" | "openai-compat";
+  baseUrl?: string;
+  apiKey: string;
+  defaultMaxOutputTokens?: number;
+}
 
 export interface CustomModel {
-  model: string;          // model ID sent to API
-  displayName: string;    // unique name — used in UI, reply label, and /model command
-  baseUrl?: string;       // OpenAI-compat URL; omit = Anthropic native
-  apiKey: string;         // supports ${ENV_VAR} interpolation
-  provider: "anthropic" | "openai-compat";
+  model: string;
+  displayName: string;
+  providerId: string;
+  role?: "daily" | "complex" | "extraction" | null;
   maxOutputTokens?: number;
+}
+
+export interface ProviderModelOption {
+  id: string;
+  name: string;
+  context_length?: number | null;
+  reasoning?: boolean;
+}
+
+export interface ToolParam {
+  name: string;
+  type: "string" | "number" | "boolean" | "text";
+  required: boolean;
+  label: string;
+  placeholder?: string;
+}
+
+export interface SystemTool {
+  id: string;
+  name: string;
+  description: string;
+  source: "builtin" | "mcp";
+  params: ToolParam[];
+}
+
+export interface ScheduledTask {
+  id: string;
+  name: string;
+  enabled: boolean;
+  schedule: {
+    type: "cron" | "interval";
+    cron?: string;
+    interval_ms?: number;
+  };
+  tool_id: string;
+  tool_params: Record<string, unknown>;
+  last_run_at?: number;
+  next_run_at?: number;
+  created_at: number;
 }
 
 // ---- Typing / Config types ----
@@ -136,11 +183,12 @@ export interface QRCodeResponse {
 }
 
 export interface QRStatusResponse {
-  status: string; // "wait" | "scaned" | "confirmed" | "expired"
+  status: "wait" | "scaned" | "confirmed" | "expired" | "scaned_but_redirect";
   bot_token?: string;
   ilink_bot_id?: string;
   baseurl?: string;
   ilink_user_id?: string;
+  redirect_host?: string; // IDC redirect: switch polling to this host
 }
 
 export interface Credentials {
