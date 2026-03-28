@@ -196,11 +196,16 @@ export function newClientId(): string {
   return crypto.randomUUID();
 }
 
-/** Extract text body from a message's item_list. */
-export function extractText(items: { type: number; text_item?: { text: string } }[]): string {
+/** Extract text body from a message's item_list.
+ * Handles text (type=1) and voice (type=3) — voice messages include a
+ * server-side ASR transcript in voice_item.text; no external API needed. */
+export function extractText(items: { type: number; text_item?: { text: string }; voice_item?: { text?: string } }[]): string {
   for (const item of items) {
     if (item.type === 1 && item.text_item?.text) {
       return item.text_item.text;
+    }
+    if (item.type === 3 && item.voice_item?.text) {
+      return item.voice_item.text;
     }
   }
   return "";

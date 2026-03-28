@@ -37,10 +37,15 @@ export interface ImageItem {
   url?: string;
 }
 
+export interface VoiceItem {
+  text?: string; // 语音转文字内容（微信服务端 ASR，无需外接 API）
+}
+
 export interface MessageItem {
   type: number;
   text_item?: TextItem;
   image_item?: ImageItem;
+  voice_item?: VoiceItem;
 }
 
 export interface WeixinMessage {
