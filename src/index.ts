@@ -15,6 +15,7 @@ import { modelRoutes } from "./routes/models.ts";
 import { toolRoutes } from "./routes/tools.ts";
 import { adminPage } from "./pages/admin.tsx";
 import { botDetailPage } from "./pages/bot-detail.tsx";
+import { guidePage } from "./pages/guide.tsx";
 import { BUILTIN_TOOLS } from "./tools.ts";
 import type { Backend, CustomModel, LlmProvider, ScheduledTask } from "./types.ts";
 
@@ -49,6 +50,9 @@ app.post("/auth", async (c) => {
     },
   });
 });
+
+// Guide page (public — no auth needed, it's documentation)
+app.get("/guide", () => guidePage());
 
 // Apply authentication middleware to all subsequent routes
 app.use("*", authMiddleware);

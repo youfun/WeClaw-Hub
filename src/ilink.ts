@@ -14,17 +14,29 @@ import type {
 } from "./types.ts";
 
 const DEFAULT_BASE_URL = "https://ilinkai.weixin.qq.com";
-const CHANNEL_VERSION = "1.0.2";
+const CHANNEL_VERSION = "2.1.1";
 const LONG_POLL_TIMEOUT_MS = 25_000; // CF Workers fetch ~30s limit
 const SEND_TIMEOUT_MS = 15_000;
 const CONFIG_TIMEOUT_MS = 10_000;
 
+// iLink-App-ClientVersion: uint32 encoded as major<<16 | minor<<8 | patch
+// 2.1.1 => (2<<16)|(1<<8)|1 = 131329
+const ILINK_APP_CLIENT_VERSION = "131329";
+const ILINK_APP_ID = "bot";
+
 // QR login endpoints (always on default base URL)
 const QR_CODE_URL = `${DEFAULT_BASE_URL}/ilink/bot/get_bot_qrcode?bot_type=3`;
-const QR_STATUS_URL = `${DEFAULT_BASE_URL}/ilink/bot/get_qrcode_status?qrcode=`;
+const QR_STATUS_BASE_URL = `${DEFAULT_BASE_URL}/ilink/bot/get_qrcode_status?qrcode=`;
 
 function buildBaseInfo(): BaseInfo {
   return { channel_version: CHANNEL_VERSION };
+}
+
+function buildGetHeaders(): Record<string, string> {
+  return {
+    "iLink-App-Id": ILINK_APP_ID,
+    "iLink-App-ClientVersion": ILINK_APP_CLIENT_VERSION,
+  };
 }
 
 /** X-WECHAT-UIN: random uint32 → decimal string → base64 */
@@ -74,6 +86,7 @@ async function apiPost<T>(
 /** GET JSON from iLink endpoint. */
 async function apiGet<T>(url: string, timeoutMs = CONFIG_TIMEOUT_MS): Promise<T> {
   const res = await fetch(url, {
+    headers: buildGetHeaders(),
     signal: AbortSignal.timeout(timeoutMs),
   });
   const text = await res.text();
@@ -172,8 +185,9 @@ export async function fetchQRCode(): Promise<QRCodeResponse> {
   return apiGet<QRCodeResponse>(QR_CODE_URL, 15_000);
 }
 
-export async function pollQRStatus(qrcode: string): Promise<QRStatusResponse> {
-  return apiGet<QRStatusResponse>(QR_STATUS_URL + encodeURIComponent(qrcode), 40_000);
+export async function pollQRStatus(qrcode: string, redirectHost?: string): Promise<QRStatusResponse> {
+  const baseUrl = redirectHost ? `https://${redirectHost}/ilink/bot/get_qrcode_status?qrcode=` : QR_STATUS_BASE_URL;
+  return apiGet<QRStatusResponse>(baseUrl + encodeURIComponent(qrcode), 40_000);
 }
 
 // ---- Helpers ----

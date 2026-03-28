@@ -183,11 +183,12 @@ export interface QRCodeResponse {
 }
 
 export interface QRStatusResponse {
-  status: string; // "wait" | "scaned" | "confirmed" | "expired"
+  status: "wait" | "scaned" | "confirmed" | "expired" | "scaned_but_redirect";
   bot_token?: string;
   ilink_bot_id?: string;
   baseurl?: string;
   ilink_user_id?: string;
+  redirect_host?: string; // IDC redirect: switch polling to this host
 }
 
 export interface Credentials {

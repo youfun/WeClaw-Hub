@@ -34,8 +34,9 @@ function Layout({ title, subtitle, children }: LayoutProps) {
               {subtitle ? <p class="subtitle">{subtitle}</p> : null}
             </div>
             <nav class="topnav">
-              <a href="/login">登录</a>
+              <a href="/guide">使用说明</a>
               <a href="/admin">管理台</a>
+              <a href="/login">绑定账号</a>
             </nav>
           </header>
           <main class="content">{children}</main>

@@ -58,8 +58,10 @@ loginRoutes.get("/login/status", async (c) => {
     return c.json({ error: "missing qrcode param" }, 400);
   }
 
+  const redirectHost = c.req.query("redirect_host") || undefined;
+
   try {
-    const status = await pollQRStatus(qrcode);
+    const status = await pollQRStatus(qrcode, redirectHost);
 
     if (status.status === "confirmed" && status.bot_token && status.ilink_bot_id) {
       const botId = c.env.BOT_SESSION.idFromName(status.ilink_bot_id);

@@ -42,6 +42,7 @@ const qrBox = document.getElementById("qr-box");
 const statusEl = document.getElementById("login-status");
 const refreshBtn = document.getElementById("refresh-qr");
 let timer = 0;
+let currentRedirectHost = "";
 
 function setStatus(text, kind) {
   if (!statusEl) return;
@@ -51,10 +52,13 @@ function setStatus(text, kind) {
 
 async function poll(qrcode) {
   window.clearTimeout(timer);
-  const res = await fetch("/login/status?qrcode=" + encodeURIComponent(qrcode));
+  let url = "/login/status?qrcode=" + encodeURIComponent(qrcode);
+  if (currentRedirectHost) url += "&redirect_host=" + encodeURIComponent(currentRedirectHost);
+  const res = await fetch(url);
   const data = await res.json();
   if (!res.ok) {
     setStatus("状态查询失败", "warn");
+    timer = window.setTimeout(() => poll(qrcode), 2000);
     return;
   }
   if (data.status === "confirmed") {
@@ -62,22 +66,31 @@ async function poll(qrcode) {
     window.setTimeout(() => window.location.assign("/admin"), 600);
     return;
   }
-  const label = data.status === "scaned" ? "已扫码，等待确认" : data.status === "expired" ? "二维码已过期" : "等待扫码";
+  if (data.status === "scaned_but_redirect" && data.redirect_host) {
+    currentRedirectHost = data.redirect_host;
+    setStatus("已扫码，切换服务节点…", "ok");
+    timer = window.setTimeout(() => poll(qrcode), 500);
+    return;
+  }
+  const label = data.status === "scaned" ? "已扫码，等待确认" : data.status === "expired" ? "二维码已过期，请刷新" : "等待扫码";
   setStatus(label, data.status === "expired" ? "warn" : "ok");
-  timer = window.setTimeout(() => poll(qrcode), 1500);
+  if (data.status !== "expired") {
+    timer = window.setTimeout(() => poll(qrcode), 1500);
+  }
 }
 
 async function loadQr() {
   window.clearTimeout(timer);
+  currentRedirectHost = "";
   setStatus("正在获取二维码", "warn");
   const res = await fetch("/login/qr");
   const data = await res.json();
   if (!res.ok) {
-    qrBox.innerHTML = "<p class=\"muted\">二维码获取失败</p>";
+    qrBox.innerHTML = "<p class=\\"muted\\">二维码获取失败</p>";
     setStatus("二维码获取失败", "warn");
     return;
   }
-  qrBox.innerHTML = data.qrcode_svg || "<p class=\"muted\">二维码为空</p>";
+  qrBox.innerHTML = data.qrcode_svg || "<p class=\\"muted\\">二维码为空</p>";
   setStatus("二维码已生成", "ok");
   poll(data.qrcode);
 }

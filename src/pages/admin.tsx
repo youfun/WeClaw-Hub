@@ -113,6 +113,11 @@ export function adminPage(props: AdminPageProps): Response {
                   </div>
                 </div>
                 <div class="inline">
+                  <button class="button" type="button"
+                    data-edit-model={model.displayName}
+                    data-edit-model-id={model.model}
+                    data-edit-provider={model.providerId}
+                    data-edit-role={model.role || ""}>编辑</button>
                   <button class="button" type="button" data-delete-model={model.displayName}>删除</button>
                 </div>
               </div>
@@ -142,6 +147,33 @@ export function adminPage(props: AdminPageProps): Response {
               </div>
             </div>
             <div class="inline"><button class="primary" type="submit">保存模型</button></div>
+          </form>
+
+          <form id="model-edit-form" class="card stack" hidden>
+            <strong>编辑模型</strong>
+            <input type="hidden" name="_originalName" />
+            <div class="form-grid">
+              <div class="field"><label>模型 ID</label><input name="model" required /></div>
+              <div class="field"><label>显示名</label><input name="displayName" required /></div>
+              <div class="field">
+                <label>供应商</label>
+                <select name="providerId">
+                  {props.providers.map((provider) => <option value={provider.id}>{provider.name}</option>)}
+                </select>
+              </div>
+              <div class="field">
+                <label>角色</label>
+                <select name="role">
+                  <option value="">未设置</option>
+                  <option value="daily">daily</option>
+                  <option value="complex">complex</option>
+                </select>
+              </div>
+            </div>
+            <div class="inline">
+              <button class="primary" type="submit">保存修改</button>
+              <button class="button" type="button" id="model-edit-cancel">取消</button>
+            </div>
           </form>
         </Section>
 
@@ -257,6 +289,35 @@ document.querySelectorAll("[data-delete-model]").forEach((button) => {
     await api("DELETE", "/api/models/" + encodeURIComponent(button.dataset.deleteModel));
     location.reload();
   });
+});
+
+document.querySelectorAll("[data-edit-model]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const form = document.getElementById("model-edit-form");
+    if (!form) return;
+    form.querySelector("[name=_originalName]").value = button.dataset.editModel;
+    form.querySelector("[name=model]").value = button.dataset.editModelId;
+    form.querySelector("[name=displayName]").value = button.dataset.editModel;
+    form.querySelector("[name=providerId]").value = button.dataset.editProvider;
+    form.querySelector("[name=role]").value = button.dataset.editRole;
+    form.hidden = false;
+    form.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  });
+});
+
+document.getElementById("model-edit-form")?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const body = formToObject(event.currentTarget);
+  const originalName = body._originalName;
+  delete body._originalName;
+  if (!body.role) delete body.role;
+  await api("PUT", "/api/models/" + encodeURIComponent(originalName), body);
+  location.reload();
+});
+
+document.getElementById("model-edit-cancel")?.addEventListener("click", () => {
+  const form = document.getElementById("model-edit-form");
+  if (form) form.hidden = true;
 });
 
 document.querySelectorAll("[data-delete-webhook]").forEach((button) => {
