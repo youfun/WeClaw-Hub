@@ -19,8 +19,8 @@ export function guidePage(): Response {
           <div class="callout">
             <strong>对话历史 vs 记忆</strong>
             <p>
-              <strong style="font-weight:600">对话历史</strong>是上下文窗口，保留最近 100 条消息（约 50 轮）供 AI 参考，发送 <span class="code">/clear</span> 即可清空，开启全新对话。<br />
-              <strong style="font-weight:600">记忆</strong>是长期存储，自动提取的用户偏好与事实，<span class="code">/clear</span> 不会清除，需在管理台手动删除。
+              <strong style="font-weight:600">对话历史</strong>是上下文窗口，保留最近 100 条消息（约 50 轮）供 AI 参考，发送 <span class="code">/clear</span> 即可清空，开启全新对话。<span class="code">/clear</span> 是纯命令，不经过 AI，因此<strong style="font-weight:600">不会触发记忆提取</strong>。<br />
+              <strong style="font-weight:600">记忆</strong>只在 AI 实际回复后自动提取，<span class="code">/clear</span> 不会清除记忆，需在管理台手动删除。
             </p>
           </div>
         </Section>
@@ -62,6 +62,13 @@ export function guidePage(): Response {
           </div>
 
           <div class="callout" style="margin-top:14px">
+            <strong>提取模型选择（优先级）</strong>
+            <p>记忆提取是结构化 JSON 抽取任务，推荐配置一个便宜的小模型专门负责，避免每轮对话都消耗高价模型的 token。</p>
+            <p style="margin-top:8px">优先级：<span class="code">extraction</span> 角色模型 → <span class="code">daily</span> 角色模型 → 列表第一个模型</p>
+            <p style="margin-top:8px">建议：在管理台给 Haiku / Gemini Flash / GPT-4o-mini 等小模型设置 <span class="code">extraction</span> 角色。</p>
+          </div>
+
+          <div class="callout" style="margin-top:10px">
             <strong>得分机制</strong>
             <p>每条记忆有一个动态得分：<span class="code">命中次数 × 2 + 最近 14 天内距上次命中的天数差</span>。得分越高越优先注入上下文，长期未被用到的记忆会自然降权。</p>
           </div>

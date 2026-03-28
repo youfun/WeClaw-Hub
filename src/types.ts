@@ -101,7 +101,7 @@ export interface CustomModel {
   model: string;
   displayName: string;
   providerId: string;
-  role?: "daily" | "complex" | null;
+  role?: "daily" | "complex" | "extraction" | null;
   maxOutputTokens?: number;
 }
 

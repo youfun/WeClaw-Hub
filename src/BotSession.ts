@@ -6,6 +6,13 @@
 //              ref/weclaw/ilink/client.go (API calls)
 //              ref/knockknock/index.mjs (DO pattern)
 //              ref/weixin-plugin/package/src/monitor/monitor.ts (official SDK)
+//
+// ── Cloudflare DO SQLite 事务限制 ──────────────────────────────────────────
+// sql.exec() 不接受 BEGIN / COMMIT / ROLLBACK 语句，必须用 JS 事务 API：
+//   state.storage.transactionSync(fn)   同步（在 alarm/fetch handler 中使用）
+//   state.storage.transaction(fn)       异步（返回 Promise）
+// 异常时自动回滚。移植到其他平台时，全局搜索 transactionSync 替换为目标事务 API。
+// ──────────────────────────────────────────────────────────────────────────
 
 import type { Env } from "./env.ts";
 import type {
@@ -389,6 +396,24 @@ export class BotSession implements DurableObject {
     return this.getManualLLMConfig();
   }
 
+  /** For memory extraction: prefer extraction-role model, then daily, then fallback config.
+   *  Extraction is a structured JSON task — a cheap/small model is sufficient and cost-effective. */
+  private async getExtractionLLMConfig(fallback: LLMConfig): Promise<LLMConfig> {
+    const models = await this.loadModels();
+    const candidate =
+      models.find((m) => m.role === "extraction") ??
+      models.find((m) => m.role === "daily") ??
+      models[0];
+    if (candidate) {
+      try {
+        return await this.resolveModelConfig(candidate);
+      } catch {
+        // ignore, fallback below
+      }
+    }
+    return fallback;
+  }
+
   private async getActiveLLMConfig(text = ""): Promise<{ config: LLMConfig; displayName: string; mode: "family" | "manual" }> {
     const mode = this.getAgentMode();
     const active = mode === "family"
@@ -430,8 +455,15 @@ export class BotSession implements DurableObject {
   }
 
   private replaceMemoryNotes(notes: MemoryNote[]): void {
-    this.state.storage.sql.exec("BEGIN TRANSACTION");
-    try {
+    // ⚠️  Cloudflare Durable Objects SQLite 限制：
+    //     不能在 sql.exec() 里执行 BEGIN TRANSACTION / COMMIT / ROLLBACK 等 SQL 事务语句，
+    //     运行时会直接抛出异常。原因是 DO 运行时自己管理写入合并与原子提交。
+    //     多步原子写入必须使用 JS API：
+    //       state.storage.transactionSync(() => { ... })   — 同步版本
+    //       state.storage.transaction(() => { ... })       — 异步版本（返回 Promise）
+    //     异常时 JS API 会自动回滚，无需手动 ROLLBACK。
+    //     移植到其他技术栈时，此处替换为目标平台的事务 API 即可。
+    this.state.storage.transactionSync(() => {
       this.state.storage.sql.exec("DELETE FROM memory_notes");
       for (const note of notes) {
         this.state.storage.sql.exec(
@@ -444,15 +476,7 @@ export class BotSession implements DurableObject {
           note.updatedAt,
         );
       }
-      this.state.storage.sql.exec("COMMIT");
-    } catch (err) {
-      try {
-        this.state.storage.sql.exec("ROLLBACK");
-      } catch {
-        // ignore rollback failure
-      }
-      throw err;
-    }
+    });
   }
 
   private async recordMemoryHits(notes: MemoryNote[]): Promise<void> {
@@ -585,13 +609,22 @@ export class BotSession implements DurableObject {
           + "不要输出任何其他内容。",
       }];
 
+      // Prefer the most capable model for extraction (complex role), fallback to provided config
+      const extractionConfig = await this.getExtractionLLMConfig(llmConfig);
       const raw = await callClaude(
         extractionMessages,
         "你是记忆提取器。从对话中提取用户的关键事实和偏好，用中文简短记录。只返回 JSON 字符串数组，不要任何其他文字。",
-        llmConfig,
+        extractionConfig,
       );
+      if (raw.startsWith("AI 无法回应：")) {
+        console.error("[memory] extraction call failed:", raw);
+        return;
+      }
       const facts = this.parseFactsJson(raw);
-      if (!facts.length) return;
+      if (!facts.length) {
+        console.warn("[memory] extraction returned no facts, raw:", raw.slice(0, 200));
+        return;
+      }
 
       const now = Date.now();
       const merged: MemoryNote[] = [];
