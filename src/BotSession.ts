@@ -31,6 +31,7 @@ import {
   sendTyping,
   newClientId,
   extractText,
+  CHANNEL_VERSION,
 } from "./ilink.ts";
 import type { Message, LLMConfig } from "./agent.ts";
 import {
@@ -913,7 +914,7 @@ export class BotSession implements DurableObject {
         item_list: [{ type: ItemType.Text, text_item: { text } }],
         context_token: contextToken,
       },
-      base_info: { channel_version: "1.0.2" },
+      base_info: { channel_version: CHANNEL_VERSION },
     });
   }
 
@@ -1314,7 +1315,7 @@ export class BotSession implements DurableObject {
           item_list: [{ type: ItemType.Text, text_item: { text: msg.text } }],
           context_token: pending.contextToken,
         },
-        base_info: { channel_version: "1.0.2" },
+        base_info: { channel_version: CHANNEL_VERSION },
       });
       console.log(`[bridge] replied to ${pending.userId}: ${msg.text.slice(0, 50)}`);
     }
@@ -1445,7 +1446,7 @@ export class BotSession implements DurableObject {
           item_list: [{ type: ItemType.Text, text_item: { text: KEEPALIVE_MSG } }],
           context_token: contextToken,
         },
-        base_info: { channel_version: "1.0.2" },
+        base_info: { channel_version: CHANNEL_VERSION },
       });
       this.kvSet("keepalive_reminded", "1");
       console.log(`[keepalive] reminder sent to owner ${toUserId}`);
@@ -1749,7 +1750,7 @@ export class BotSession implements DurableObject {
         item_list: [{ type: ItemType.Text, text_item: { text: replyText } }],
         context_token: contextToken,
       },
-      base_info: { channel_version: "1.0.2" },
+      base_info: { channel_version: CHANNEL_VERSION },
     });
   }
 

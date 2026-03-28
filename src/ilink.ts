@@ -14,7 +14,7 @@ import type {
 } from "./types.ts";
 
 const DEFAULT_BASE_URL = "https://ilinkai.weixin.qq.com";
-const CHANNEL_VERSION = "2.1.1";
+export const CHANNEL_VERSION = "2.1.1";
 const LONG_POLL_TIMEOUT_MS = 25_000; // CF Workers fetch ~30s limit
 const SEND_TIMEOUT_MS = 15_000;
 const CONFIG_TIMEOUT_MS = 10_000;
