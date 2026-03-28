@@ -1,9 +1,15 @@
 // HTTP Agent — supports Anthropic Messages API and OpenAI-compatible APIs
 // Reference: ref/weclaw/agent/http_agent.go
 
+export interface ImageData {
+  data: Uint8Array;
+  mediaType: string;
+}
+
 export interface Message {
   role: "user" | "assistant";
   content: string;
+  image?: ImageData;
 }
 
 export interface LLMConfig {
@@ -50,7 +56,12 @@ export function trimHistory(messages: Message[]): Message[] {
   if (messages.length <= HISTORY_LIMIT) return messages;
   const trimmed = messages.slice(messages.length - HISTORY_LIMIT);
   const start = trimmed.findIndex((m) => m.role === "user");
-  return start > 0 ? trimmed.slice(start) : trimmed;
+  const normalized = start > 0 ? trimmed.slice(start) : trimmed;
+  return normalized.map((message, index) => ({
+    role: message.role,
+    content: message.content,
+    image: index === normalized.length - 1 ? message.image : undefined,
+  }));
 }
 
 /** Call LLM and return reply text. Never throws — returns error string on failure. */
@@ -79,11 +90,63 @@ export async function callClaude(
   }
 }
 
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    const chunk = bytes.subarray(offset, offset + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+  return btoa(binary);
+}
+
+function buildAnthropicContent(message: Message): string | Array<Record<string, unknown>> {
+  if (!message.image) return message.content;
+
+  const content: Array<Record<string, unknown>> = [{
+    type: "image",
+    source: {
+      type: "base64",
+      media_type: message.image.mediaType,
+      data: bytesToBase64(message.image.data),
+    },
+  }];
+
+  if (message.content) {
+    content.push({ type: "text", text: message.content });
+  }
+
+  return content;
+}
+
+function buildOpenAIContent(message: Message): string | Array<Record<string, unknown>> {
+  if (!message.image) return message.content;
+
+  const base64 = bytesToBase64(message.image.data);
+  const content: Array<Record<string, unknown>> = [{
+    type: "image_url",
+    image_url: {
+      url: `data:${message.image.mediaType};base64,${base64}`,
+    },
+  }];
+
+  if (message.content) {
+    content.push({ type: "text", text: message.content });
+  }
+
+  return content;
+}
+
 async function callAnthropic(
   messages: Message[],
   systemPrompt: string,
   config: LLMConfig,
 ): Promise<string> {
+  const apiMessages = trimHistory(messages).map((message) => ({
+    role: message.role,
+    content: buildAnthropicContent(message),
+  }));
+
   const res = await fetch(ANTHROPIC_API_URL, {
     method: "POST",
     headers: {
@@ -95,7 +158,7 @@ async function callAnthropic(
       model: config.model || DEFAULT_ANTHROPIC_MODEL,
       max_tokens: config.maxOutputTokens ?? 4096,
       system: systemPrompt || DEFAULT_SYSTEM,
-      messages: trimHistory(messages),
+      messages: apiMessages,
     }),
     signal: AbortSignal.timeout(55_000),
   });
@@ -122,7 +185,10 @@ async function callOpenAICompat(
   const url = config.baseUrl!.replace(/\/$/, "") + "/chat/completions";
   const oaiMessages = [
     { role: "system", content: systemPrompt || DEFAULT_SYSTEM },
-    ...trimHistory(messages),
+    ...trimHistory(messages).map((message) => ({
+      role: message.role,
+      content: buildOpenAIContent(message),
+    })),
   ];
 
   const res = await fetch(url, {

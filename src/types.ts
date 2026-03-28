@@ -33,8 +33,16 @@ export interface TextItem {
   text: string;
 }
 
+export interface CDNMedia {
+  encrypt_query_param?: string;
+  aes_key?: string;
+}
+
 export interface ImageItem {
   url?: string;
+  media?: CDNMedia;
+  aeskey?: string;
+  mid_size?: number;
 }
 
 export interface VoiceItem {

@@ -22,6 +22,8 @@ import type {
   BridgeMessage,
   BridgeReply,
   LlmProvider,
+  ImageItem,
+  MessageItem,
 } from "./types.ts";
 import { MessageType, MessageState, ItemType, TypingStatus } from "./types.ts";
 import {
@@ -45,6 +47,7 @@ import { parseRoute, HELP_TEXT } from "./router.ts";
 import { computeNextRun } from "./scheduler.ts";
 import type { ScheduledTask } from "./types.ts";
 import { stripHtml } from "./tools.ts";
+import { downloadImage, inferImageMediaType } from "./cdn.ts";
 
 const ERR_SESSION_EXPIRED = -14;
 const SESSION_PAUSE_MS = 60 * 60 * 1_000; // 1 hour pause on session expiry
@@ -60,6 +63,17 @@ const MEMORY_LIMIT = 40;
 const MEMORY_CONTEXT_LIMIT = 20;
 const MEMORY_VIEW_LIMIT = 10;
 const MEMORY_RECENCY_DAYS = 14;
+const IMAGE_PLACEHOLDER = "[图片]";
+const IMAGE_DOWNLOAD_FAILED_PLACEHOLDER = "[图片（无法获取，请发文字描述）]";
+
+export function extractImageItem(items: MessageItem[]): ImageItem | null {
+  for (const item of items) {
+    if (item.type === ItemType.Image && item.image_item) {
+      return item.image_item;
+    }
+  }
+  return null;
+}
 
 interface BotSettings {
   remark: string;
@@ -1478,12 +1492,14 @@ export class BotSession implements DurableObject {
     }
 
     const text = extractText(msg.item_list);
-    if (!text) return;
+  const imageItem = extractImageItem(msg.item_list);
+  if (!text && !imageItem) return;
 
     const userId = msg.from_user_id;
     const contextToken = msg.context_token;
+  const summaryText = text || IMAGE_PLACEHOLDER;
 
-    console.log(`[msg] from=${userId} text="${text.slice(0, 80)}"`);
+  console.log(`[msg] from=${userId} text="${summaryText.slice(0, 80)}" image=${imageItem ? "yes" : "no"}`);
 
     // Schedule keepalive reminder when bot owner sends a message
     if (userId === creds.ilink_user_id && this.kvGet("keepalive") === "1") {
@@ -1500,10 +1516,10 @@ export class BotSession implements DurableObject {
         type: "message",
         msg_id: msgId,
         from: userId,
-        text,
+        text: summaryText,
         context_token: contextToken,
       };
-      session.pending.set(msgId, { userId, contextToken, text });
+      session.pending.set(msgId, { userId, contextToken, text: summaryText });
       try {
         session.ws.send(JSON.stringify(bridgeMsg));
         console.log(`[bridge] forwarded msg_id=${msgId}`);
@@ -1517,11 +1533,11 @@ export class BotSession implements DurableObject {
     }
 
     // Priority 2: Backend webhook routing
-    const backendHandled = await this.routeToBackends(creds, userId, text, contextToken);
+    const backendHandled = await this.routeToBackends(creds, userId, summaryText, contextToken);
     if (backendHandled) return;
 
     // Priority 3: Internal agent (Claude + commands)
-    await this.handleWithAgent(creds, userId, text, contextToken);
+    await this.handleWithAgent(creds, userId, text, contextToken, imageItem);
   }
 
   // ---- Backend routing ----
@@ -1606,6 +1622,7 @@ export class BotSession implements DurableObject {
     userId: string,
     text: string,
     contextToken: string,
+    imageItem?: ImageItem | null,
   ): Promise<void> {
     const action = parseRoute(text);
     let replyText: string;
@@ -1718,18 +1735,39 @@ export class BotSession implements DurableObject {
       }
 
       case "agent": {
-        if (!action.message) {
+        const hasImage = Boolean(imageItem);
+        if (!action.message && !hasImage) {
           replyText = "请输入消息";
           break;
         }
         // Send typing indicator before calling LLM
         await this.sendTypingTo(creds, userId, contextToken);
-        this.addChatHistory(userId, "user", action.message);
+        let imageData: Message["image"] | undefined;
+        let userContent = action.message || IMAGE_PLACEHOLDER;
+
+        if (imageItem) {
+          const imageBytes = await downloadImage(imageItem);
+          if (imageBytes) {
+            imageData = {
+              data: imageBytes,
+              mediaType: inferImageMediaType(imageBytes, imageItem),
+            };
+          } else if (!action.message) {
+            userContent = IMAGE_DOWNLOAD_FAILED_PLACEHOLDER;
+          }
+        }
+
+        this.addChatHistory(userId, "user", userContent);
         const history = this.getChatHistory(userId);
-        const { config: llmConfig, displayName } = await this.getActiveLLMConfig(action.message);
+        const currentMessage: Message = {
+          role: "user",
+          content: userContent,
+          image: imageData,
+        };
+        const { config: llmConfig, displayName } = await this.getActiveLLMConfig(action.message || userContent);
         const memoryContext = await this.buildMemoryContext();
         const systemPrompt = (this.env.SYSTEM_PROMPT ?? "你是一个有用的AI助手。") + memoryContext;
-        const raw = await callClaude(history, systemPrompt, llmConfig);
+        const raw = await callClaude([...history, currentMessage], systemPrompt, llmConfig);
         this.addChatHistory(userId, "assistant", raw);
         this.state.waitUntil(this.extractMemories(userId, llmConfig));
         replyText = `[${displayName}]\n${raw}`;
