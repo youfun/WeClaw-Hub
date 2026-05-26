@@ -36,17 +36,47 @@ export interface TextItem {
 export interface CDNMedia {
   encrypt_query_param?: string;
   aes_key?: string;
+  encrypt_type?: number;
+  full_url?: string;
 }
 
 export interface ImageItem {
   url?: string;
   media?: CDNMedia;
+  thumb_media?: CDNMedia;
   aeskey?: string;
   mid_size?: number;
+  thumb_size?: number;
+  thumb_height?: number;
+  thumb_width?: number;
+  hd_size?: number;
 }
 
 export interface VoiceItem {
+  media?: CDNMedia;
   text?: string; // 语音转文字内容（微信服务端 ASR，无需外接 API）
+  encode_type?: number;
+  bits_per_sample?: number;
+  sample_rate?: number;
+  playtime?: number;
+}
+
+export interface FileItem {
+  media?: CDNMedia;
+  file_name?: string;
+  md5?: string;
+  len?: string;
+}
+
+export interface VideoItem {
+  media?: CDNMedia;
+  video_size?: number;
+  play_length?: number;
+  video_md5?: string;
+  thumb_media?: CDNMedia;
+  thumb_size?: number;
+  thumb_height?: number;
+  thumb_width?: number;
 }
 
 export interface MessageItem {
@@ -54,6 +84,8 @@ export interface MessageItem {
   text_item?: TextItem;
   image_item?: ImageItem;
   voice_item?: VoiceItem;
+  file_item?: FileItem;
+  video_item?: VideoItem;
 }
 
 export interface WeixinMessage {
@@ -87,6 +119,7 @@ export interface SendMsg {
   message_state: number;
   item_list: MessageItem[];
   context_token: string;
+  run_id?: string;
 }
 
 export interface SendMessageRequest {
@@ -212,6 +245,33 @@ export interface Credentials {
   ilink_bot_id: string;
   baseurl: string;
   ilink_user_id: string;
+}
+
+export const UploadMediaType = {
+  Image: 1,
+  Video: 2,
+  File: 3,
+  Voice: 4,
+} as const;
+
+export interface GetUploadUrlRequest {
+  filekey: string;
+  media_type: number;
+  to_user_id: string;
+  rawsize: number;
+  rawfilemd5: string;
+  filesize: number;
+  thumb_rawsize?: number;
+  thumb_rawfilemd5?: string;
+  thumb_filesize?: number;
+  no_need_thumb?: boolean;
+  aeskey: string;
+}
+
+export interface GetUploadUrlResponse {
+  upload_param?: string;
+  thumb_upload_param?: string;
+  upload_full_url?: string;
 }
 
 export type WebhookVerifyMode = "hmac-sha256" | "bearer" | "none";

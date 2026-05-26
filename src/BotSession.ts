@@ -29,6 +29,8 @@ import { MessageType, MessageState, ItemType, TypingStatus } from "./types.ts";
 import {
   getUpdates,
   sendMessage,
+  getUploadUrl,
+  uploadToCDN,
   getConfig,
   sendTyping,
   newClientId,
@@ -38,16 +40,19 @@ import {
 import type { Message, LLMConfig } from "./agent.ts";
 import {
   callClaude,
+  callClaudeStream,
+  generateImage,
   DEFAULT_ANTHROPIC_MODEL,
   DEFAULT_OPENAI_MODEL,
   isDifficultQuery,
 } from "./agent.ts";
+import type { ImageGenResult } from "./agent.ts";
 import type { CustomModel } from "./types.ts";
 import { parseRoute, HELP_TEXT } from "./router.ts";
 import { computeNextRun } from "./scheduler.ts";
 import type { ScheduledTask } from "./types.ts";
 import { stripHtml } from "./tools.ts";
-import { downloadImage, inferImageMediaType } from "./cdn.ts";
+import { downloadImage, inferImageMediaType, aesEcbEncrypt, aesEcbPaddedSize, md5 } from "./cdn.ts";
 
 const ERR_SESSION_EXPIRED = -14;
 const SESSION_PAUSE_MS = 60 * 60 * 1_000; // 1 hour pause on session expiry
@@ -1610,6 +1615,7 @@ export class BotSession implements DurableObject {
     if (backendHandled) return;
 
     // Priority 3: Internal agent (Claude + commands)
+    console.log(`[agent] routing to agent, text="${text.slice(0,40)}"`);
     await this.handleWithAgent(creds, userId, text, contextToken, imageItem);
   }
 
@@ -1807,6 +1813,23 @@ export class BotSession implements DurableObject {
         break;
       }
 
+      case "draw": {
+        if (!action.prompt) {
+          replyText = "请输入提示词，例如：/draw 一只猫";
+          break;
+        }
+        // Check if image provider is configured
+        const imgProviderId = await this.env.BACKENDS.get("llm:image_provider_id");
+        if (!imgProviderId) {
+          replyText = "暂不支持，请先在管理台配置生图供应商。";
+          break;
+        }
+        await this.sendTypingTo(creds, userId, contextToken);
+        console.log(`[draw] prompt="${action.prompt.slice(0, 40)}"`);
+        await this.handleDrawCommand(creds, userId, contextToken, action.prompt);
+        return; // Already sent reply
+      }
+
       case "agent": {
         const hasImage = Boolean(imageItem);
         if (!action.message && !hasImage) {
@@ -1838,8 +1861,20 @@ export class BotSession implements DurableObject {
           image: imageData,
         };
         const { config: llmConfig, displayName } = await this.getActiveLLMConfig(action.message || userContent);
+        console.log(`[agent] model=${displayName} baseUrl=${llmConfig.baseUrl || "anthropic"} streaming=${!imageData}`);
         const memoryContext = await this.buildMemoryContext();
         const systemPrompt = (this.env.SYSTEM_PROMPT ?? "你是一个有用的AI助手。") + memoryContext;
+
+        // Streaming for text-only messages; fallback to non-streaming for images
+        if (!imageData) {
+          console.log(`[stream] starting for userId=${userId}`);
+          await this.sendStreamingReply(creds, userId, contextToken,
+            [...history, currentMessage], systemPrompt, llmConfig, displayName);
+          console.log(`[stream] completed for userId=${userId}`);
+          this.state.waitUntil(this.extractMemories(userId, llmConfig));
+          return; // Already sent the reply via stream
+        }
+
         const raw = await callClaude([...history, currentMessage], systemPrompt, llmConfig);
         this.addChatHistory(userId, "assistant", raw);
         this.state.waitUntil(this.extractMemories(userId, llmConfig));
@@ -1863,6 +1898,227 @@ export class BotSession implements DurableObject {
       },
       base_info: { channel_version: CHANNEL_VERSION },
     });
+  }
+
+  // ---- Streaming reply ----
+
+  private async sendStreamingReply(
+    creds: Credentials,
+    userId: string,
+    contextToken: string,
+    messages: Message[],
+    systemPrompt: string,
+    llmConfig: LLMConfig,
+    displayName: string,
+  ): Promise<void> {
+    const runId = newClientId();
+    let fullText = "";
+    let lastSent = "";
+    let lastSentTime = Date.now();
+    const BATCH_CHARS = 30;
+    const BATCH_MS = 300;
+
+    try {
+      console.log(`[stream] callClaudeStream beginning, displayName=${displayName}`);
+      let chunkCount = 0;
+      for await (const chunk of callClaudeStream(messages, systemPrompt, llmConfig)) {
+        fullText += chunk;
+        chunkCount++;
+
+        const sinceChars = fullText.length - lastSent.length;
+        const sinceMs = Date.now() - lastSentTime;
+        if (sinceChars >= BATCH_CHARS || sinceMs >= BATCH_MS) {
+          lastSent = fullText;
+          lastSentTime = Date.now();
+          const displayText = `[${displayName}]\n${fullText}`;
+          console.log(`[stream] partial send chars=${fullText.length} chunks=${chunkCount}`);
+          sendMessage(creds, {
+            msg: {
+              from_user_id: creds.ilink_bot_id,
+              to_user_id: userId,
+              client_id: newClientId(),
+              message_type: MessageType.Bot,
+              message_state: MessageState.Generating,
+              item_list: [{ type: ItemType.Text, text_item: { text: displayText } }],
+              context_token: contextToken,
+              run_id: runId,
+            },
+            base_info: { channel_version: CHANNEL_VERSION },
+          }).catch((err) => console.error(`[stream] partial send error:`, err));
+        }
+      }
+
+      const finalText = fullText || "AI 无法回应：接口返回空内容";
+      this.addChatHistory(userId, "assistant", finalText);
+      const displayText = `[${displayName}]\n${finalText}`;
+      console.log(`[stream] final send chars=${finalText.length} totalChunks=${chunkCount}`);
+      await sendMessage(creds, {
+        msg: {
+          from_user_id: creds.ilink_bot_id,
+          to_user_id: userId,
+          client_id: newClientId(),
+          message_type: MessageType.Bot,
+          message_state: MessageState.Finish,
+          item_list: [{ type: ItemType.Text, text_item: { text: displayText } }],
+          context_token: contextToken,
+          run_id: runId,
+        },
+        base_info: { channel_version: CHANNEL_VERSION },
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("[agent] stream error:", msg);
+      if (fullText) this.addChatHistory(userId, "assistant", fullText);
+      const errorText = `[${displayName}]\nAI 无法回应：${msg}`;
+      await sendMessage(creds, {
+        msg: {
+          from_user_id: creds.ilink_bot_id,
+          to_user_id: userId,
+          client_id: newClientId(),
+          message_type: MessageType.Bot,
+          message_state: MessageState.Finish,
+          item_list: [{ type: ItemType.Text, text_item: { text: errorText } }],
+          context_token: contextToken,
+          run_id: runId,
+        },
+        base_info: { channel_version: CHANNEL_VERSION },
+      });
+    }
+  }
+
+  // ---- Image generation ----
+
+  private async getImageLLMConfig(): Promise<LLMConfig> {
+    const imageProviderId = await this.env.BACKENDS.get("llm:image_provider_id");
+    if (!imageProviderId) {
+      throw new Error("未配置生图供应商，请前往管理台 → 生图 设置");
+    }
+
+    const imageModel = await this.env.BACKENDS.get("llm:image_model");
+    const providers = await this.loadProviders();
+    const provider = providers.find((p) => p.id === imageProviderId);
+    if (!provider) {
+      throw new Error(`生图供应商 "${imageProviderId}" 不存在，请检查管理台配置`);
+    }
+
+    console.log(`[draw] provider=${provider.id} baseUrl=${provider.baseUrl || "默认"} model=${imageModel || "(未指定)"}`);
+    return {
+      apiKey: this.resolveApiKey(provider.apiKey),
+      baseUrl: provider.baseUrl,
+      model: imageModel || "dall-e-3",
+    };
+  }
+
+  private async handleDrawCommand(
+    creds: Credentials,
+    userId: string,
+    contextToken: string,
+    prompt: string,
+  ): Promise<void> {
+    // Send "generating" status message
+    await sendMessage(creds, {
+      msg: {
+        from_user_id: creds.ilink_bot_id,
+        to_user_id: userId,
+        client_id: newClientId(),
+        message_type: MessageType.Bot,
+        message_state: MessageState.Finish,
+        item_list: [{ type: ItemType.Text, text_item: { text: `🎨 正在生成：${prompt}` } }],
+        context_token: contextToken,
+      },
+      base_info: { channel_version: CHANNEL_VERSION },
+    });
+
+    try {
+      const imageConfig = await this.getImageLLMConfig();
+      console.log(`[draw] generating image via ${imageConfig.model}...`);
+      const result = await generateImage(prompt, imageConfig);
+      console.log(`[draw] image generated, url=${!!result.url} b64=${!!result.b64Json}`);
+
+      // Download image from URL
+      let imageBytes: Uint8Array | null = null;
+      if (result.url) {
+        const res = await fetch(result.url, { signal: AbortSignal.timeout(30_000) });
+        if (res.ok) {
+          imageBytes = new Uint8Array(await res.arrayBuffer());
+        }
+      } else if (result.b64Json) {
+        // Decode base64
+        const binary = atob(result.b64Json);
+        imageBytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          imageBytes[i] = binary.charCodeAt(i);
+        }
+      }
+
+      if (!imageBytes || imageBytes.length === 0) {
+        throw new Error("无法下载生成的图片");
+      }
+
+      // Generate AES key
+      const aesKey = crypto.getRandomValues(new Uint8Array(16));
+      const filekey = Array.from(crypto.getRandomValues(new Uint8Array(16)))
+        .map((b) => b.toString(16).padStart(2, "0")).join("");
+      const rawsize = imageBytes.length;
+      const filesize = aesEcbPaddedSize(rawsize);
+
+      // Compute MD5 (pure JS)
+      const rawfilemd5 = md5(imageBytes);
+
+      // Get CDN upload URL
+      console.log(`[draw] uploading to CDN, rawsize=${rawsize} filesize=${filesize}`);
+      const uploadResp = await getUploadUrl(creds, {
+        filekey,
+        media_type: 1, // UploadMediaType.IMAGE
+        to_user_id: userId,
+        rawsize,
+        rawfilemd5,
+        filesize,
+        no_need_thumb: true,
+        aeskey: Array.from(aesKey).map((b) => b.toString(16).padStart(2, "0")).join(""),
+      });
+
+      const uploadFullUrl = uploadResp.upload_full_url?.trim();
+      if (!uploadFullUrl && !uploadResp.upload_param) {
+        throw new Error("CDN 上传地址获取失败");
+      }
+
+      // Encrypt and upload
+      const ciphertext = aesEcbEncrypt(imageBytes, aesKey);
+      const cdnUrl = uploadFullUrl ||
+        `https://novac2c.cdn.weixin.qq.com/c2c/upload?encrypted_query_param=${encodeURIComponent(uploadResp.upload_param!)}&filekey=${encodeURIComponent(filekey)}`;
+      const { downloadParam } = await uploadToCDN(ciphertext, cdnUrl);
+      console.log(`[draw] CDN upload done`);
+
+      // Send image to user
+      const aesKeyBase64 = btoa(String.fromCharCode(...aesKey));
+      await sendMessage(creds, {
+        msg: {
+          from_user_id: creds.ilink_bot_id,
+          to_user_id: userId,
+          client_id: newClientId(),
+          message_type: MessageType.Bot,
+          message_state: MessageState.Finish,
+          item_list: [{
+            type: ItemType.Image,
+            image_item: {
+              media: {
+                encrypt_query_param: downloadParam,
+                aes_key: aesKeyBase64,
+                encrypt_type: 1,
+              },
+              mid_size: filesize,
+            },
+          }],
+          context_token: contextToken,
+        },
+        base_info: { channel_version: CHANNEL_VERSION },
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("[draw] failed:", msg);
+      await this.sendTextToUser(creds, userId, contextToken, `图片生成失败：${msg}`);
+    }
   }
 
   private async buildStatusText(): Promise<string> {

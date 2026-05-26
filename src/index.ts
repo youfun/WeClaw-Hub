@@ -183,14 +183,43 @@ app.delete("/api/webhooks/:path", async (c) => {
   return c.json({ ok: true });
 });
 
+// ── Image generation config ──
+
+app.patch("/api/image-config", async (c) => {
+  const body = await c.req.json() as { image_provider_id?: string | null; image_model?: string | null };
+  if (body.image_provider_id !== undefined) {
+    const id = (body.image_provider_id ?? "").trim();
+    if (id) {
+      const providers = await loadProviders(c.env);
+      if (!providers.some((p) => p.id === id)) {
+        return c.json({ error: `provider "${id}" not found` }, 400);
+      }
+      await c.env.BACKENDS.put("llm:image_provider_id", id);
+    } else {
+      await c.env.BACKENDS.delete("llm:image_provider_id");
+    }
+  }
+  if (body.image_model !== undefined) {
+    const model = (body.image_model ?? "").trim();
+    if (model) {
+      await c.env.BACKENDS.put("llm:image_model", model);
+    } else {
+      await c.env.BACKENDS.delete("llm:image_model");
+    }
+  }
+  return c.json({ ok: true });
+});
+
 app.get("/admin", async (c) => {
-  const [bots, providers, models, webhooks] = await Promise.all([
+  const [bots, providers, models, webhooks, imageProviderId, imageModel] = await Promise.all([
     loadBots(c.env),
     loadProviders(c.env),
     loadModels(c.env),
     loadWebhooks(c.env),
+    c.env.BACKENDS.get("llm:image_provider_id"),
+    c.env.BACKENDS.get("llm:image_model"),
   ]);
-  return adminPage({ bots, providers, models, webhooks });
+  return adminPage({ bots, providers, models, webhooks, imageProviderId, imageModel });
 });
 
 app.get("/admin/bot/:id", async (c) => {

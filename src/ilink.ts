@@ -11,7 +11,10 @@ import type {
   SendTypingResponse,
   QRCodeResponse,
   QRStatusResponse,
+  GetUploadUrlRequest,
+  GetUploadUrlResponse,
 } from "./types.ts";
+import { UploadMediaType } from "./types.ts";
 
 const DEFAULT_BASE_URL = "https://ilinkai.weixin.qq.com";
 export const CHANNEL_VERSION = "2.1.1";
@@ -139,6 +142,104 @@ export async function sendMessage(
     creds.bot_token,
     SEND_TIMEOUT_MS,
   );
+}
+
+// ---- CDN Upload ----
+
+const CDN_UPLOAD_TIMEOUT_MS = 30_000;
+
+export async function getUploadUrl(
+  creds: Credentials,
+  params: GetUploadUrlRequest,
+): Promise<GetUploadUrlResponse> {
+  return apiPost<GetUploadUrlResponse>(
+    creds.baseurl || DEFAULT_BASE_URL,
+    "ilink/bot/getuploadurl",
+    {
+      filekey: params.filekey,
+      media_type: params.media_type,
+      to_user_id: params.to_user_id,
+      rawsize: params.rawsize,
+      rawfilemd5: params.rawfilemd5,
+      filesize: params.filesize,
+      thumb_rawsize: params.thumb_rawsize,
+      thumb_rawfilemd5: params.thumb_rawfilemd5,
+      thumb_filesize: params.thumb_filesize,
+      no_need_thumb: params.no_need_thumb,
+      aeskey: params.aeskey,
+      base_info: buildBaseInfo(),
+    },
+    creds.bot_token,
+    CDN_UPLOAD_TIMEOUT_MS,
+  );
+}
+
+/**
+ * Upload AES-128-ECB encrypted buffer to Weixin CDN.
+ * Returns the download encrypt_query_param from the CDN response header.
+ */
+export async function uploadToCDN(
+  ciphertext: Uint8Array,
+  uploadFullUrl: string,
+): Promise<{ downloadParam: string }> {
+  const url = uploadFullUrl.trim();
+  if (!url) throw new Error("CDN upload URL is empty");
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/octet-stream" },
+    body: ciphertext,
+    signal: AbortSignal.timeout(CDN_UPLOAD_TIMEOUT_MS),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "");
+    throw new Error(`CDN upload failed HTTP ${res.status}: ${errText}`);
+  }
+
+  const downloadParam = res.headers.get("x-encrypted-param");
+  if (!downloadParam) {
+    throw new Error("CDN upload response missing x-encrypted-param header");
+  }
+
+  return { downloadParam };
+}
+
+/**
+ * Send a media message (image/video/file) with optional text caption.
+ * Sends text caption first (if any), then the media item as separate messages.
+ */
+export async function sendMediaMessage(
+  creds: Credentials,
+  params: {
+    to_user_id: string;
+    context_token: string;
+    text?: string;
+    mediaItem: { type: number; image_item?: Record<string, unknown>; video_item?: Record<string, unknown>; file_item?: Record<string, unknown> };
+  },
+): Promise<void> {
+  const { to_user_id, context_token, text, mediaItem } = params;
+
+  const items: Array<{ type: number; [key: string]: unknown }> = [];
+  if (text) {
+    items.push({ type: 1, text_item: { text } });
+  }
+  items.push(mediaItem);
+
+  for (const item of items) {
+    await sendMessage(creds, {
+      msg: {
+        from_user_id: creds.ilink_bot_id,
+        to_user_id,
+        client_id: newClientId(),
+        message_type: 2, // Bot
+        message_state: 2, // Finish
+        item_list: [item as import("./types.ts").MessageItem],
+        context_token: context_token,
+      },
+      base_info: buildBaseInfo(),
+    });
+  }
 }
 
 export async function getConfig(

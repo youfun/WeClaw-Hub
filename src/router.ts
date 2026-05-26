@@ -9,6 +9,7 @@ export type RouterAction =
   | { type: "mode"; args: string }
   | { type: "memory" }
   | { type: "tasks"; args: string }
+  | { type: "draw"; prompt: string }
   | { type: "agent"; message: string };
 
 export const HELP_TEXT = [
@@ -18,6 +19,7 @@ export const HELP_TEXT = [
   "/mode [family|manual] — 切换自动/手动选模",
   "/memory — 查看当前记忆",
   "/tasks — 查看定时任务",
+  "/draw [提示词] — AI 生图",
   "/status — 查看 Bot 状态",
   "/clear — 清空对话历史",
   "/help — 显示帮助",
@@ -39,6 +41,13 @@ export function parseRoute(text: string): RouterAction {
   if (lower === "/memory") return { type: "memory" };
   if (lower === "/tasks") return { type: "tasks", args: "" };
   if (lower.startsWith("/tasks ")) return { type: "tasks", args: trimmed.slice("/tasks ".length).trim() };
+
+  if (lower.startsWith("/draw ")) {
+    return { type: "draw", prompt: trimmed.slice("/draw ".length).trim() };
+  }
+  if (lower === "/draw") {
+    return { type: "draw", prompt: "" };
+  }
 
   if (lower.startsWith("/claude ")) {
     return { type: "agent", message: trimmed.slice("/claude ".length).trim() };

@@ -26,6 +26,8 @@ export function adminPage(props: AdminPageProps): Response {
     models: props.models,
     webhooks: props.webhooks,
     botIds: props.bots.map((b) => b.bot_id),
+    imageProviderId: props.imageProviderId,
+    imageModel: props.imageModel,
   });
 
   return renderPage({
@@ -234,16 +236,15 @@ export function adminPage(props: AdminPageProps): Response {
             <div class="form-grid">
               <div class="field">
                 <label>供应商</label>
-                <select name="image_provider_id">
+                <select name="image_provider_id" id="image-provider-select">
                   <option value="">不使用生图</option>
                   {props.providers.map((provider) => <option value={provider.id} selected={props.imageProviderId === provider.id}>{provider.name}</option>)}
                 </select>
               </div>
               <div class="field">
                 <label>模型</label>
-                <select name="image_model">
-                  <option value="dall-e-3" selected={props.imageModel === "dall-e-3"}>dall-e-3</option>
-                  <option value="dall-e-2" selected={props.imageModel === "dall-e-2"}>dall-e-2</option>
+                <select name="image_model" id="image-model-select">
+                  {props.imageModel ? <option value={props.imageModel}>{props.imageModel}</option> : <option value="">请先选择供应商</option>}
                 </select>
               </div>
             </div>
@@ -434,6 +435,32 @@ document.getElementById("image-form")?.addEventListener("submit", async (event) 
     image_model: body.image_model || null,
   });
   location.reload();
+});
+
+async function loadImageModels(providerId, currentModel) {
+  const sel = document.getElementById("image-model-select");
+  if (!sel) return;
+  if (!providerId) {
+    sel.innerHTML = '<option value="">请先选择供应商</option>';
+    return;
+  }
+  sel.innerHTML = '<option value="">加载中…</option>';
+  try {
+    const res = await api("GET", "/api/providers/" + encodeURIComponent(providerId) + "/models");
+    const models = res.models || [];
+    sel.innerHTML = models.map((m) => '<option value="' + m.id + '"' + (m.id === currentModel ? ' selected' : '') + '>' + m.name + '</option>').join('');
+  } catch (err) {
+    sel.innerHTML = '<option value="">加载失败，请重试</option>';
+  }
+}
+
+// Load image models on page load if a provider is already selected
+if (adminData.imageProviderId) {
+  loadImageModels(adminData.imageProviderId, adminData.imageModel);
+}
+
+document.getElementById("image-provider-select")?.addEventListener("change", function () {
+  loadImageModels(this.value, "");
 });
 
 document.querySelectorAll("[data-delete-provider]").forEach((button) => {
