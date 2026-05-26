@@ -541,12 +541,36 @@ select {
 
 /* ── QR ── */
 .qr-box {
+  position: relative;
   min-height: 200px;
   display: grid;
   place-items: center;
   border: 1px dashed rgba(127, 48, 20, 0.22);
   border-radius: 16px;
   background: linear-gradient(180deg, rgba(255,255,255,0.8), rgba(239,224,203,0.5));
+}
+
+.qr-expired-overlay {
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  background: rgba(31, 26, 23, 0.75);
+  backdrop-filter: blur(2px);
+  color: white;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  z-index: 10;
+  transition: background-color 0.15s;
+}
+
+.qr-expired-overlay:hover {
+  background: rgba(31, 26, 23, 0.85);
 }
 
 .footer-note { font-size: 13px; color: var(--ink-muted); }

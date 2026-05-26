@@ -103,7 +103,7 @@ export function adminPage(props: AdminPageProps): Response {
               <form id="provider-form" class="stack">
                 <strong>添加供应商</strong>
                 <div class="form-grid">
-                  <div class="field"><label>ID</label><input name="id" placeholder="openrouter" required /></div>
+                  <div class="field"><label>ID</label><input name="id" placeholder="openrouter" pattern="[a-z0-9_-]{1,64}" title="仅支持 1-64 位小写字母、数字、下划线(_)或连字符(-)" required /></div>
                   <div class="field"><label>名称</label><input name="name" placeholder="OpenRouter" required /></div>
                   <div class="field">
                     <label>API 类型</label>
@@ -318,7 +318,7 @@ export function adminPage(props: AdminPageProps): Response {
               <form id="webhook-form" class="stack">
                 <strong>添加 Webhook</strong>
                 <div class="form-grid">
-                  <div class="field"><label>路径（可选，留空则自动生成）</label><input name="path" placeholder="e.g. daily-news 或留空自动生成" /></div>
+                  <div class="field"><label>路径（可选，留空则自动生成）</label><input name="path" placeholder="e.g. daily-news 或留空自动生成" pattern="[a-z0-9_-]{1,64}" title="仅支持 1-64 位小写字母、数字、下划线(_)或连字符(-)" /></div>
                   <div class="field"><label>名称</label><input name="name" placeholder="每日新闻" /></div>
                   <div class="field">
                     <label>消息来源</label>
@@ -407,11 +407,40 @@ async function api(method, path, body) {
     headers,
     body: body ? JSON.stringify(body) : undefined,
   });
+  if (res.status === 401) {
+    window.location.assign("/auth?redirect=" + encodeURIComponent(window.location.pathname));
+    return new Promise(() => {});
+  }
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.error || "request_failed");
   }
   return res.json().catch(() => ({}));
+}
+
+async function wrapSubmit(target, loadingText, actionFn) {
+  let button;
+  let originalText;
+  let isForm = target.tagName === "FORM";
+  if (isForm) {
+    button = target.querySelector('button[type="submit"]');
+  } else {
+    button = target;
+  }
+  if (button) {
+    originalText = button.textContent;
+    button.disabled = true;
+    if (loadingText) button.textContent = loadingText;
+  }
+  try {
+    await actionFn();
+  } catch (err) {
+    alert("操作失败: " + err.message);
+    if (button) {
+      button.disabled = false;
+      button.textContent = originalText;
+    }
+  }
 }
 
 function formToObject(form) {
@@ -462,17 +491,23 @@ toggleForm("toggle-webhook-form", "webhook-form-wrap", "cancel-webhook-form");
 
 document.getElementById("provider-form")?.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const body = formToObject(event.currentTarget);
-  await api("POST", "/api/providers", body);
-  location.reload();
+  const form = event.currentTarget;
+  const body = formToObject(form);
+  await wrapSubmit(form, "保存中...", async () => {
+    await api("POST", "/api/providers", body);
+    location.reload();
+  });
 });
 
 document.getElementById("model-form")?.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const body = formToObject(event.currentTarget);
+  const form = event.currentTarget;
+  const body = formToObject(form);
   if (!body.role) delete body.role;
-  await api("POST", "/api/models", body);
-  location.reload();
+  await wrapSubmit(form, "保存中...", async () => {
+    await api("POST", "/api/models", body);
+    location.reload();
+  });
 });
 
 document.getElementById("webhook-form")?.addEventListener("submit", async (event) => {
@@ -481,19 +516,23 @@ document.getElementById("webhook-form")?.addEventListener("submit", async (event
   const body = formToObject(form);
   body.bot_ids = Array.from(form.querySelectorAll('[name="bot_id"]:checked')).map((cb) => cb.value);
   delete body.bot_id;
-  await api("POST", "/api/webhooks", body);
-  location.reload();
+  await wrapSubmit(form, "保存中...", async () => {
+    await api("POST", "/api/webhooks", body);
+    location.reload();
+  });
 });
 
 document.getElementById("image-form")?.addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = event.currentTarget;
   const body = formToObject(form);
-  await api("PATCH", "/api/image-config", {
-    image_provider_id: body.image_provider_id || null,
-    image_model: body.image_model || null,
+  await wrapSubmit(form, "保存中...", async () => {
+    await api("PATCH", "/api/image-config", {
+      image_provider_id: body.image_provider_id || null,
+      image_model: body.image_model || null,
+    });
+    location.reload();
   });
-  location.reload();
 });
 
 async function loadImageModels(providerId, currentModel) {
@@ -553,8 +592,10 @@ if (initialProvider) loadAddModelOptions(initialProvider);
 document.querySelectorAll("[data-unbind-bot]").forEach((button) => {
   button.addEventListener("click", async () => {
     if (!confirm("确定要解除绑定吗？")) return;
-    await api("POST", "/bot/" + button.dataset.unbindBot + "/unbind");
-    location.reload();
+    await wrapSubmit(button, "解除中...", async () => {
+      await api("POST", "/bot/" + button.dataset.unbindBot + "/unbind");
+      location.reload();
+    });
   });
 });
 
@@ -582,10 +623,13 @@ document.querySelectorAll("[data-edit-provider]").forEach((button) => {
 
 document.getElementById("provider-edit-form")?.addEventListener("submit", async (event) => {
   event.preventDefault();
-  var body = formToObject(event.currentTarget);
+  const form = event.currentTarget;
+  var body = formToObject(form);
   if (!body.apiKey) delete body.apiKey;
-  await api("PUT", "/api/providers/" + encodeURIComponent(body.id), body);
-  location.reload();
+  await wrapSubmit(form, "保存中...", async () => {
+    await api("PUT", "/api/providers/" + encodeURIComponent(body.id), body);
+    location.reload();
+  });
 });
 
 document.getElementById("provider-edit-cancel")?.addEventListener("click", () => {
@@ -595,15 +639,21 @@ document.getElementById("provider-edit-cancel")?.addEventListener("click", () =>
 
 document.querySelectorAll("[data-delete-provider]").forEach((button) => {
   button.addEventListener("click", async () => {
-    await api("DELETE", "/api/providers/" + encodeURIComponent(button.dataset.deleteProvider));
-    location.reload();
+    if (!confirm("确定要删除该供应商吗？这可能会影响使用该供应商的模型。")) return;
+    await wrapSubmit(button, "删除中...", async () => {
+      await api("DELETE", "/api/providers/" + encodeURIComponent(button.dataset.deleteProvider));
+      location.reload();
+    });
   });
 });
 
 document.querySelectorAll("[data-delete-model]").forEach((button) => {
   button.addEventListener("click", async () => {
-    await api("DELETE", "/api/models/" + encodeURIComponent(button.dataset.deleteModel));
-    location.reload();
+    if (!confirm("确定要删除该模型吗？")) return;
+    await wrapSubmit(button, "删除中...", async () => {
+      await api("DELETE", "/api/models/" + encodeURIComponent(button.dataset.deleteModel));
+      location.reload();
+    });
   });
 });
 
@@ -631,12 +681,15 @@ document.querySelectorAll("[data-edit-model]").forEach((button) => {
 
 document.getElementById("model-edit-form")?.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const body = formToObject(event.currentTarget);
+  const form = event.currentTarget;
+  const body = formToObject(form);
   const originalName = body._originalName;
   delete body._originalName;
   if (!body.role) delete body.role;
-  await api("PUT", "/api/models/" + encodeURIComponent(originalName), body);
-  location.reload();
+  await wrapSubmit(form, "保存中...", async () => {
+    await api("PUT", "/api/models/" + encodeURIComponent(originalName), body);
+    location.reload();
+  });
 });
 
 document.getElementById("model-edit-cancel")?.addEventListener("click", () => {
@@ -646,39 +699,47 @@ document.getElementById("model-edit-cancel")?.addEventListener("click", () => {
 
 document.querySelectorAll("[data-delete-webhook]").forEach((button) => {
   button.addEventListener("click", async () => {
-    await api("DELETE", "/api/webhooks/" + encodeURIComponent(button.dataset.deleteWebhook));
-    location.reload();
+    if (!confirm("确定要删除该 Webhook 吗？")) return;
+    await wrapSubmit(button, "删除中...", async () => {
+      await api("DELETE", "/api/webhooks/" + encodeURIComponent(button.dataset.deleteWebhook));
+      location.reload();
+    });
   });
 });
 
 document.querySelectorAll("[data-load-models]").forEach((button) => {
   button.addEventListener("click", async () => {
-    activeProviderId = button.dataset.loadModels || "";
-    const provider = adminData.providers.find((item) => item.id === activeProviderId);
-    const res = await api("GET", "/api/providers/" + encodeURIComponent(activeProviderId) + "/models");
-    const imported = new Set(adminData.models.filter((item) => item.providerId === activeProviderId).map((item) => item.model));
-    const wrap = document.getElementById("model-import");
-    const title = document.getElementById("model-import-title");
-    const list = document.getElementById("model-import-list");
-    if (!wrap || !title || !list) return;
-    title.textContent = "从 " + (provider?.name || activeProviderId) + " 导入模型";
-    list.innerHTML = (res.models || []).map((model) => {
-      const checked = imported.has(model.id);
-      return '<label class="row"><span><strong>' + model.name + '</strong><span class="meta"><span class="code-inline">' + model.id + '</span></span></span><input type="checkbox" data-import-model="' + model.id + '" data-import-name="' + model.name + '" ' + (checked ? 'disabled' : '') + '></label>';
-    }).join("") || '<p class="muted">未找到可导入的模型</p>';
-    wrap.classList.remove("hidden");
+    await wrapSubmit(button, "获取中...", async () => {
+      activeProviderId = button.dataset.loadModels || "";
+      const provider = adminData.providers.find((item) => item.id === activeProviderId);
+      const res = await api("GET", "/api/providers/" + encodeURIComponent(activeProviderId) + "/models");
+      const imported = new Set(adminData.models.filter((item) => item.providerId === activeProviderId).map((item) => item.model));
+      const wrap = document.getElementById("model-import");
+      const title = document.getElementById("model-import-title");
+      const list = document.getElementById("model-import-list");
+      if (!wrap || !title || !list) return;
+      title.textContent = "从 " + (provider?.name || activeProviderId) + " 导入模型";
+      list.innerHTML = (res.models || []).map((model) => {
+        const checked = imported.has(model.id);
+        return '<label class="row"><span><strong>' + model.name + '</strong><span class="meta"><span class="code-inline">' + model.id + '</span></span></span><input type="checkbox" data-import-model="' + model.id + '" data-import-name="' + model.name + '" ' + (checked ? 'disabled' : '') + '></label>';
+      }).join("") || '<p class="muted">未找到可导入的模型</p>';
+      wrap.classList.remove("hidden");
+    });
   });
 });
 
-document.getElementById("import-selected-models")?.addEventListener("click", async () => {
+document.getElementById("import-selected-models")?.addEventListener("click", async (event) => {
   if (!activeProviderId) return;
+  const button = event.currentTarget;
   const selected = Array.from(document.querySelectorAll("[data-import-model]:checked")).map((input) => ({
     model: input.dataset.importModel,
     displayName: input.dataset.importName,
   }));
   if (!selected.length) return;
-  await api("POST", "/api/models/import", { providerId: activeProviderId, models: selected });
-  location.reload();
+  await wrapSubmit(button, "导入中...", async () => {
+    await api("POST", "/api/models/import", { providerId: activeProviderId, models: selected });
+    location.reload();
+  });
 });
 `;
 }

@@ -22,8 +22,8 @@ export function loginPage(origin: string): Response {
             </div>
             <div class="card stack">
               <strong>登录流程</strong>
-              <p class="muted">1. 点击"刷新二维码"</p>
-              <p class="muted">2. 使用微信扫描</p>
+              <p class="muted">1. 使用微信扫描下方二维码</p>
+              <p class="muted">2. 在手机端确认登录</p>
               <p class="muted">3. 确认授权后自动完成机器人绑定</p>
               <div id="login-status">
                 <StatusBadge status="warn" text="等待扫码" />
@@ -75,7 +75,15 @@ async function poll(qrcode) {
   }
   const label = data.status === "scaned" ? "已扫码，等待确认" : data.status === "expired" ? "二维码已过期，请刷新" : "等待扫码";
   setStatus(label, data.status === "expired" ? "warn" : "ok");
-  if (data.status !== "expired") {
+  if (data.status === "expired") {
+    if (!qrBox.querySelector(".qr-expired-overlay")) {
+      const overlay = document.createElement("div");
+      overlay.className = "qr-expired-overlay";
+      overlay.innerHTML = "<span>二维码已过期</span><span style='font-size: 12px; opacity: 0.8;'>点击此处刷新</span>";
+      overlay.addEventListener("click", loadQr);
+      qrBox.appendChild(overlay);
+    }
+  } else {
     timer = window.setTimeout(() => poll(qrcode), 1500);
   }
 }

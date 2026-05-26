@@ -826,25 +826,50 @@ describe("/bot/:id/tasks", () => {
 // ── Admin pages ────────────────────────────────────────────────────────────
 
 describe("admin pages", () => {
-  it("GET /login returns HTML", async () => {
+  it("GET /login returns HTML and contains updated steps and expired overlay CSS/JS", async () => {
     const res = await get("/login");
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("text/html");
-    expect(await res.text()).toContain("WeClaw Hub");
+    const html = await res.text();
+    expect(html).toContain("WeClaw Hub");
+    expect(html).toContain("1. 使用微信扫描下方二维码");
+    expect(html).toContain("2. 在手机端确认登录");
+    expect(html).toContain("3. 确认授权后自动完成机器人绑定");
+    expect(html).toContain("qr-expired-overlay");
   });
 
-  it("GET /admin returns admin dashboard HTML", async () => {
+  it("GET /admin returns admin dashboard HTML, validating confirmation, pattern, double-submit, and redirect logic", async () => {
     const res = await get("/admin");
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("text/html");
-    expect(await res.text()).toContain("<h2>机器人</h2>");
+    const html = await res.text();
+    expect(html).toContain("<h2>机器人</h2>");
+    // Verify client-side pattern validations
+    expect(html).toContain('pattern="[a-z0-9_-]{1,64}"');
+    // Verify confirmation prompts
+    expect(html).toContain('confirm("确定要删除该供应商吗？');
+    expect(html).toContain('confirm("确定要删除该模型吗？');
+    expect(html).toContain('confirm("确定要删除该 Webhook 吗？');
+    // Verify 401 redirect logic in API call
+    expect(html).toContain('/auth?redirect=');
+    // Verify double-submission loading states in JS
+    expect(html).toContain('保存中...');
   });
 
-  it("GET /admin/bot/:id returns bot detail HTML", async () => {
+  it("GET /admin/bot/:id returns bot detail HTML, validating confirmation, double-submit, redirect, and state retention logic", async () => {
     const res = await get("/admin/bot/demo-bot");
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("text/html");
-    expect(await res.text()).toContain("定时任务");
+    const html = await res.text();
+    expect(html).toContain("定时任务");
+    // Verify confirmation prompts
+    expect(html).toContain('confirm("确定要删除该定时任务吗？');
+    expect(html).toContain('confirm("确定要删除该条记忆吗？');
+    expect(html).toContain('confirm("确定要清空该机器人的所有记忆吗？');
+    // Verify 401 redirect logic in API call
+    expect(html).toContain('/auth?redirect=');
+    // Verify parameter retention function
+    expect(html).toContain('getCurrentParamValues');
   });
 });
 

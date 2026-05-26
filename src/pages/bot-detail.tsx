@@ -279,11 +279,40 @@ async function api(method, path, body) {
     headers,
     body: body ? JSON.stringify(body) : undefined,
   });
+  if (res.status === 401) {
+    window.location.assign("/auth?redirect=" + encodeURIComponent(window.location.pathname));
+    return new Promise(() => {});
+  }
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
     throw new Error(data.error || "request_failed");
   }
   return res.json().catch(() => ({}));
+}
+
+async function wrapSubmit(target, loadingText, actionFn) {
+  let button;
+  let originalText;
+  let isForm = target.tagName === "FORM";
+  if (isForm) {
+    button = target.querySelector('button[type="submit"]');
+  } else {
+    button = target;
+  }
+  if (button) {
+    originalText = button.textContent;
+    button.disabled = true;
+    if (loadingText) button.textContent = loadingText;
+  }
+  try {
+    await actionFn();
+  } catch (err) {
+    alert("操作失败: " + err.message);
+    if (button) {
+      button.disabled = false;
+      button.textContent = originalText;
+    }
+  }
 }
 
 function toggleForm(btnId, wrapId, cancelBtnId) {
@@ -292,7 +321,7 @@ function toggleForm(btnId, wrapId, cancelBtnId) {
   const cancelBtn = document.getElementById(cancelBtnId);
   if (!btn || !wrap) return;
   var addLabel = btn.textContent;
-  var closeLabel = "\u2212 收起";
+  var closeLabel = "\\u2212 收起";
 
   function show() {
     wrap.classList.remove("hidden");
@@ -377,8 +406,18 @@ function readScheduleFromForm() {
   return { type: "cron", cron: cron };
 }
 
+function getCurrentParamValues() {
+  const values = {};
+  document.querySelectorAll('[name^="param:"]').forEach((input) => {
+    const name = input.name.slice(6);
+    values[name] = input.value;
+  });
+  return values;
+}
+
 document.getElementById("task-tool-id")?.addEventListener("change", (event) => {
-  renderParamFields(event.currentTarget.value, {});
+  const currentValues = getCurrentParamValues();
+  renderParamFields(event.currentTarget.value, currentValues);
 });
 
 document.getElementById("schedule-mode")?.addEventListener("change", (event) => {
@@ -399,42 +438,48 @@ document.getElementById("task-reset")?.addEventListener("click", () => {
 
 document.getElementById("settings-form")?.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const form = new FormData(event.currentTarget);
-  await api("PATCH", "/bot/" + botDetail.botId + "/settings", {
-    remark: form.get("remark"),
-    agent_mode: form.get("agent_mode"),
-    active_model: form.get("active_model"),
-    keepalive: form.get("keepalive") === "true",
-    accept_webhook: form.get("accept_webhook") === "true",
+  const form = event.currentTarget;
+  const formData = new FormData(form);
+  await wrapSubmit(form, "保存中...", async () => {
+    await api("PATCH", "/bot/" + botDetail.botId + "/settings", {
+      remark: formData.get("remark"),
+      agent_mode: formData.get("agent_mode"),
+      active_model: formData.get("active_model"),
+      keepalive: formData.get("keepalive") === "true",
+      accept_webhook: formData.get("accept_webhook") === "true",
+    });
+    location.reload();
   });
-  location.reload();
 });
 
 document.getElementById("task-form")?.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const form = new FormData(event.currentTarget);
-  const taskId = String(form.get("id") || "");
+  const form = event.currentTarget;
+  const formData = new FormData(form);
+  const taskId = String(formData.get("id") || "");
   const toolParams = {};
-  for (const [key, value] of form.entries()) {
+  for (const [key, value] of formData.entries()) {
     if (String(key).startsWith("param:")) {
       toolParams[String(key).slice(6)] = value;
     }
   }
   const body = {
     id: taskId || undefined,
-    name: form.get("name"),
+    name: formData.get("name"),
     enabled: true,
     schedule: readScheduleFromForm(),
-    tool_id: form.get("tool_id"),
+    tool_id: formData.get("tool_id"),
     tool_params: toolParams,
   };
   const base = "/bot/" + botDetail.botId + "/tasks";
-  if (taskId) {
-    await api("PUT", base + "/" + encodeURIComponent(taskId), body);
-  } else {
-    await api("POST", base, body);
-  }
-  location.reload();
+  await wrapSubmit(form, "保存中...", async () => {
+    if (taskId) {
+      await api("PUT", base + "/" + encodeURIComponent(taskId), body);
+    } else {
+      await api("POST", base, body);
+    }
+    location.reload();
+  });
 });
 
 document.querySelectorAll("[data-edit-task]").forEach((button) => {
@@ -451,7 +496,7 @@ document.querySelectorAll("[data-edit-task]").forEach((button) => {
     var btn = document.getElementById("toggle-task-form");
     if (wrap && wrap.classList.contains("hidden")) {
       wrap.classList.remove("hidden");
-      if (btn) btn.textContent = "\u2212 收起";
+      if (btn) btn.textContent = "\\u2212 收起";
     }
     window.scrollTo({ top: document.getElementById("task-form").offsetTop - 24, behavior: "smooth" });
   });
@@ -459,37 +504,51 @@ document.querySelectorAll("[data-edit-task]").forEach((button) => {
 
 document.querySelectorAll("[data-run-task]").forEach((button) => {
   button.addEventListener("click", async () => {
-    await api("POST", "/bot/" + botDetail.botId + "/tasks/run", { task_id: button.dataset.runTask });
-    location.reload();
+    await wrapSubmit(button, "运行中...", async () => {
+      await api("POST", "/bot/" + botDetail.botId + "/tasks/run", { task_id: button.dataset.runTask });
+      location.reload();
+    });
   });
 });
 
 document.querySelectorAll("[data-toggle-task]").forEach((button) => {
   button.addEventListener("click", async () => {
-    await api("PUT", "/bot/" + botDetail.botId + "/tasks/" + encodeURIComponent(button.dataset.toggleTask), {
-      enabled: button.dataset.nextEnabled === "true",
+    await wrapSubmit(button, button.dataset.nextEnabled === "true" ? "启用中..." : "禁用中...", async () => {
+      await api("PUT", "/bot/" + botDetail.botId + "/tasks/" + encodeURIComponent(button.dataset.toggleTask), {
+        enabled: button.dataset.nextEnabled === "true",
+      });
+      location.reload();
     });
-    location.reload();
   });
 });
 
 document.querySelectorAll("[data-delete-task]").forEach((button) => {
   button.addEventListener("click", async () => {
-    await api("DELETE", "/bot/" + botDetail.botId + "/tasks/" + encodeURIComponent(button.dataset.deleteTask));
-    location.reload();
+    if (!confirm("确定要删除该定时任务吗？")) return;
+    await wrapSubmit(button, "删除中...", async () => {
+      await api("DELETE", "/bot/" + botDetail.botId + "/tasks/" + encodeURIComponent(button.dataset.deleteTask));
+      location.reload();
+    });
   });
 });
 
 document.querySelectorAll("[data-delete-note]").forEach((button) => {
   button.addEventListener("click", async () => {
-    await api("DELETE", "/bot/" + botDetail.botId + "/memory/" + encodeURIComponent(button.dataset.deleteNote));
-    location.reload();
+    if (!confirm("确定要删除该条记忆吗？")) return;
+    await wrapSubmit(button, "删除中...", async () => {
+      await api("DELETE", "/bot/" + botDetail.botId + "/memory/" + encodeURIComponent(button.dataset.deleteNote));
+      location.reload();
+    });
   });
 });
 
-document.getElementById("clear-memory")?.addEventListener("click", async () => {
-  await api("DELETE", "/bot/" + botDetail.botId + "/memory/clear");
-  location.reload();
+document.getElementById("clear-memory")?.addEventListener("click", async (event) => {
+  const button = event.currentTarget;
+  if (!confirm("确定要清空该机器人的所有记忆吗？此操作无法撤销。")) return;
+  await wrapSubmit(button, "清空中...", async () => {
+    await api("DELETE", "/bot/" + botDetail.botId + "/memory/clear");
+    location.reload();
+  });
 });
 
 switchScheduleMode("daily");
