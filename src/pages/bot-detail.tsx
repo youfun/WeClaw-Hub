@@ -372,7 +372,7 @@ document.getElementById("task-reset")?.addEventListener("click", () => {
 document.getElementById("settings-form")?.addEventListener("submit", async (event) => {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
-  await api("PATCH", "/bot/" + encodeURIComponent(botDetail.botId) + "/settings", {
+  await api("PATCH", "/bot/" + botDetail.botId + "/settings", {
     remark: form.get("remark"),
     agent_mode: form.get("agent_mode"),
     active_model: form.get("active_model"),
@@ -400,7 +400,7 @@ document.getElementById("task-form")?.addEventListener("submit", async (event) =
     tool_id: form.get("tool_id"),
     tool_params: toolParams,
   };
-  const base = "/bot/" + encodeURIComponent(botDetail.botId) + "/tasks";
+  const base = "/bot/" + botDetail.botId + "/tasks";
   if (taskId) {
     await api("PUT", base + "/" + encodeURIComponent(taskId), body);
   } else {
@@ -424,14 +424,14 @@ document.querySelectorAll("[data-edit-task]").forEach((button) => {
 
 document.querySelectorAll("[data-run-task]").forEach((button) => {
   button.addEventListener("click", async () => {
-    await api("POST", "/bot/" + encodeURIComponent(botDetail.botId) + "/tasks/run", { task_id: button.dataset.runTask });
+    await api("POST", "/bot/" + botDetail.botId + "/tasks/run", { task_id: button.dataset.runTask });
     location.reload();
   });
 });
 
 document.querySelectorAll("[data-toggle-task]").forEach((button) => {
   button.addEventListener("click", async () => {
-    await api("PUT", "/bot/" + encodeURIComponent(botDetail.botId) + "/tasks/" + encodeURIComponent(button.dataset.toggleTask), {
+    await api("PUT", "/bot/" + botDetail.botId + "/tasks/" + encodeURIComponent(button.dataset.toggleTask), {
       enabled: button.dataset.nextEnabled === "true",
     });
     location.reload();
@@ -440,20 +440,20 @@ document.querySelectorAll("[data-toggle-task]").forEach((button) => {
 
 document.querySelectorAll("[data-delete-task]").forEach((button) => {
   button.addEventListener("click", async () => {
-    await api("DELETE", "/bot/" + encodeURIComponent(botDetail.botId) + "/tasks/" + encodeURIComponent(button.dataset.deleteTask));
+    await api("DELETE", "/bot/" + botDetail.botId + "/tasks/" + encodeURIComponent(button.dataset.deleteTask));
     location.reload();
   });
 });
 
 document.querySelectorAll("[data-delete-note]").forEach((button) => {
   button.addEventListener("click", async () => {
-    await api("DELETE", "/bot/" + encodeURIComponent(botDetail.botId) + "/memory/" + encodeURIComponent(button.dataset.deleteNote));
+    await api("DELETE", "/bot/" + botDetail.botId + "/memory/" + encodeURIComponent(button.dataset.deleteNote));
     location.reload();
   });
 });
 
 document.getElementById("clear-memory")?.addEventListener("click", async () => {
-  await api("DELETE", "/bot/" + encodeURIComponent(botDetail.botId) + "/memory/clear");
+  await api("DELETE", "/bot/" + botDetail.botId + "/memory/clear");
   location.reload();
 });
 
