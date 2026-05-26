@@ -225,3 +225,7 @@ bunx wrangler secret put ANTHROPIC_API_KEY  # AI 密钥
 ## License
 
 MIT
+
+---
+
+智能选择模式（family）思路来源于 [Agemily](https://github.com/sofish/agemily) — 根据问题复杂度自动切换轻量/复杂模型。
