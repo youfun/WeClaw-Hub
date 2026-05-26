@@ -9,6 +9,8 @@ type BotSettings = {
   accept_webhook: boolean;
   agent_mode: "family" | "manual";
   active_model?: string;
+  image_provider_id?: string;
+  image_model?: string;
 };
 
 type BotDetailProps = {
@@ -18,6 +20,7 @@ type BotDetailProps = {
   notes: Array<{ id: string; content: string; hitCount?: number; lastHitAt?: number | null }>;
   tools: SystemTool[];
   models: Array<{ displayName: string }>;
+  providers: Array<{ id: string; name: string; type: string }>;
 };
 
 function humanSchedule(task: ScheduledTask): string {
@@ -56,7 +59,7 @@ export function botDetailPage(props: BotDetailProps): Response {
 
   return renderPage({
     title: `Bot 配置 · ${props.botId}`,
-    subtitle: "单 Bot 视图，集中管理 AI 模式、任务、记忆和后续 MCP 能力。",
+    subtitle: "集中管理当前机器人的设置、定时任务与记忆。",
     activeNav: "admin",
     children: (
       <>
@@ -67,7 +70,7 @@ export function botDetailPage(props: BotDetailProps): Response {
         </div>
         <Section
           title="基础设置"
-          description="这里展示当前 Durable Object 上保存的机器人设置。"
+          description="修改备注、AI 模式与功能开关。"
           dot="brand"
         >
           <form id="settings-form" class="card stack">
@@ -79,8 +82,8 @@ export function botDetailPage(props: BotDetailProps): Response {
               <div class="field">
                 <label>AI 模式</label>
                 <select name="agent_mode">
-                  <option value="family" selected={props.settings.agent_mode === "family"}>family</option>
-                  <option value="manual" selected={props.settings.agent_mode === "manual"}>manual</option>
+                  <option value="family" selected={props.settings.agent_mode === "family"}>智能选择</option>
+                  <option value="manual" selected={props.settings.agent_mode === "manual"}>手动指定</option>
                 </select>
               </div>
               <div class="field">
@@ -93,15 +96,15 @@ export function botDetailPage(props: BotDetailProps): Response {
               <div class="field">
                 <label>保活</label>
                 <select name="keepalive">
-                  <option value="true" selected={props.settings.keepalive}>ON</option>
-                  <option value="false" selected={!props.settings.keepalive}>OFF</option>
+                  <option value="true" selected={props.settings.keepalive}>开启</option>
+                  <option value="false" selected={!props.settings.keepalive}>关闭</option>
                 </select>
               </div>
               <div class="field">
                 <label>接收 Webhook</label>
                 <select name="accept_webhook">
-                  <option value="true" selected={props.settings.accept_webhook}>ON</option>
-                  <option value="false" selected={!props.settings.accept_webhook}>OFF</option>
+                  <option value="true" selected={props.settings.accept_webhook}>开启</option>
+                  <option value="false" selected={!props.settings.accept_webhook}>关闭</option>
                 </select>
               </div>
             </div>
@@ -111,23 +114,43 @@ export function botDetailPage(props: BotDetailProps): Response {
 
         <Section
           title="AI 模式"
-          description="family 模式优先按模型角色 daily / complex 自动选择。"
+          description="智能选择会根据对话内容自动切换轻量 / 复杂模型。手动指定则始终使用所选模型。"
           dot="terminal"
         >
           <div class="row">
             <div>
-              <strong>{props.settings.agent_mode === "family" ? "家庭优化" : "指定模型"}</strong>
+              <strong>{props.settings.agent_mode === "family" ? "智能选择" : "手动指定"}</strong>
               <div class="meta">
-                <Chip color="terminal" text={props.settings.agent_mode} />
+                <Chip color="terminal" text={props.settings.agent_mode === "family" ? "智能" : "手动"} />
                 <span>{props.settings.active_model || "自动选择"}</span>
               </div>
             </div>
+          </div>
+
+          <div style="height: 16px"></div>
+
+          <div class="card stack">
+            <strong>生图模型</strong>
+            <div class="form-grid">
+              <div class="field">
+                <label>供应商</label>
+                <select name="image_provider_id" form="settings-form">
+                  <option value="">不使用生图</option>
+                  {props.providers.map((provider) => <option value={provider.id} selected={props.settings.image_provider_id === provider.id}>{provider.name} ({provider.type})</option>)}
+                </select>
+              </div>
+              <div class="field">
+                <label>模型</label>
+                <input name="image_model" form="settings-form" value={props.settings.image_model || "dall-e-3"} placeholder="dall-e-3" />
+              </div>
+            </div>
+            <span class="helper">发送 /draw 命令时使用的图片生成模型。</span>
           </div>
         </Section>
 
         <Section
           title="定时任务"
-          description="任务已切换为工具调用模型，使用 tool_id + tool_params 持久化。"
+          description="到了设定时间，机器人会自动执行你配置的动作。"
           dot="wechat"
         >
           <div class="grid">
@@ -137,14 +160,14 @@ export function botDetailPage(props: BotDetailProps): Response {
                   <strong>{task.name}</strong>
                   <div class="meta">
                     <span class="code-inline">{humanSchedule(task)}</span>
-                    <span class="meta-chip">{task.tool_id}</span>
+                    <span class="meta-chip">{props.tools.find(t => t.id === task.tool_id)?.name ?? task.tool_id}</span>
                     <span>{task.last_run_at ? new Date(task.last_run_at).toLocaleString("zh-CN") : "未运行"}</span>
                   </div>
                 </div>
                 <div class="inline">
                   <StatusBadge
                     status={task.enabled ? "ok" : "warn"}
-                    text={task.enabled ? "ON" : "OFF"}
+                    text={task.enabled ? "启用" : "停用"}
                     pulse={task.enabled}
                   />
                   <button class="button" type="button" data-edit-task={task.id}>编辑</button>
@@ -229,7 +252,7 @@ export function botDetailPage(props: BotDetailProps): Response {
                 <div>
                   <strong>{index + 1}. {note.content}</strong>
                   <div class="meta">
-                    <span>hits: {note.hitCount ?? 0}</span>
+                    <span>命中 {note.hitCount ?? 0} 次</span>
                     <span>{note.lastHitAt ? new Date(note.lastHitAt).toLocaleDateString("zh-CN") : "未命中"}</span>
                   </div>
                 </div>
@@ -243,7 +266,7 @@ export function botDetailPage(props: BotDetailProps): Response {
 
         <Section
           title="MCP 端点"
-          description="预留区，后续会接入 tools/list 自动发现。"
+          description="即将开放，支持接入外部工具扩展机器人能力。"
           dot="amber"
         >
           <div class="card"><StatusBadge status="warn" text="暂未开放" /></div>
@@ -378,6 +401,8 @@ document.getElementById("settings-form")?.addEventListener("submit", async (even
     active_model: form.get("active_model"),
     keepalive: form.get("keepalive") === "true",
     accept_webhook: form.get("accept_webhook") === "true",
+    image_provider_id: form.get("image_provider_id") || undefined,
+    image_model: form.get("image_model") || undefined,
   });
   location.reload();
 });
