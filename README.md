@@ -26,6 +26,8 @@
 ### Webhook 通知
 把其他渠道推送的 webhook 消息转发到微信。
 
+比如：短信验证码（通过手机短信转发器）、服务器监控告警、GitHub 通知等。
+
 - GitHub / TAPD / 通用 JSON — 内置解析器
 - Bearer Token 验证
 - 消息模板支持 `${字段路径}` 提取 JSON 字段
