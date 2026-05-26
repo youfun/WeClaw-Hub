@@ -332,7 +332,6 @@ export function adminPage(props: AdminPageProps): Response {
                     <label>验证方式</label>
                     <select name="verify">
                       <option value="bearer">Bearer 令牌</option>
-                      <option value="hmac-sha256">HMAC-SHA256 签名</option>
                       <option value="none">无验证</option>
                     </select>
                   </div>
