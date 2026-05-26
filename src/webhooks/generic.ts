@@ -9,7 +9,8 @@ function asText(value: unknown): string {
 }
 
 function shorten(text: string, limit = 500): string {
-  const compact = text.replace(/\s+/g, " ").trim();
+  // Replace consecutive spaces/tabs on the same line, but preserve newlines
+  const compact = text.replace(/[ \t]+/g, " ").trim();
   if (compact.length <= limit) return compact;
   return `${compact.slice(0, limit - 3)}...`;
 }
@@ -159,12 +160,12 @@ export function parseGenericMessage(
   }
 
   const body = asRecord(payload);
-  if (!body) return wrap(JSON.stringify(payload));
+  if (!body) return wrap(JSON.stringify(payload, null, 2));
 
   const text = asText(body.text) || asText(body.message) || asText(body.content);
   if (text) {
     return wrap(text);
   }
 
-  return wrap(JSON.stringify(body));
+  return wrap(JSON.stringify(body, null, 2));
 }

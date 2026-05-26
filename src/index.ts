@@ -219,7 +219,8 @@ app.get("/admin", async (c) => {
     c.env.BACKENDS.get("llm:image_provider_id"),
     c.env.BACKENDS.get("llm:image_model"),
   ]);
-  return adminPage({ bots, providers, models, webhooks, imageProviderId, imageModel });
+  const origin = new URL(c.req.url).origin;
+  return adminPage({ bots, providers, models, webhooks, imageProviderId, imageModel, origin });
 });
 
 app.get("/admin/bot/:id", async (c) => {
@@ -358,7 +359,7 @@ function sanitizeKeySegment(input: string): string | null {
 }
 
 function generateWebhookPath(): string {
-  const bytes = new Uint8Array(6);
+  const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
   return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
 }

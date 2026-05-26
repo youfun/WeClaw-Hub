@@ -18,6 +18,7 @@ type AdminPageProps = {
   webhooks: Array<Backend | Record<string, unknown>>;
   imageProviderId: string | null;
   imageModel: string | null;
+  origin: string;
 };
 
 export function adminPage(props: AdminPageProps): Response {
@@ -87,6 +88,7 @@ export function adminPage(props: AdminPageProps): Response {
                 </div>
                 <div class="inline">
                   <button class="button" type="button" data-load-models={provider.id}>获取模型列表</button>
+                  <button class="button" type="button" data-edit-provider={provider.id} data-edit-provider-name={provider.name} data-edit-provider-type={provider.type} data-edit-provider-url={provider.baseUrl || ""}>编辑</button>
                   <button class="button" type="button" data-delete-provider={provider.id}>删除</button>
                 </div>
               </div>
@@ -104,7 +106,7 @@ export function adminPage(props: AdminPageProps): Response {
                   <div class="field"><label>ID</label><input name="id" placeholder="openrouter" required /></div>
                   <div class="field"><label>名称</label><input name="name" placeholder="OpenRouter" required /></div>
                   <div class="field">
-                    <label>类型</label>
+                    <label>API 类型</label>
                     <select name="type">
                       <option value="anthropic">Anthropic</option>
                       <option value="openai-compat">OpenAI</option>
@@ -122,7 +124,30 @@ export function adminPage(props: AdminPageProps): Response {
 
           <div style="height: 14px"></div>
 
-          <div id="model-import" class="card stack" hidden>
+          <form id="provider-edit-form" class="card stack hidden">
+            <strong>编辑供应商</strong>
+            <input type="hidden" name="id" />
+            <div class="form-grid">
+              <div class="field"><label>名称</label><input name="name" required /></div>
+              <div class="field">
+                <label>API 类型</label>
+                <select name="type">
+                  <option value="anthropic">Anthropic</option>
+                  <option value="openai-compat">OpenAI</option>
+                </select>
+              </div>
+              <div class="field"><label>接口地址</label><input name="baseUrl" placeholder="https://openrouter.ai/api/v1" /></div>
+              <div class="field full"><label>密钥（留空则不修改）</label><input name="apiKey" placeholder="留空则不修改" /></div>
+            </div>
+            <div class="inline">
+              <button class="primary" type="submit">保存修改</button>
+              <button class="button" type="button" id="provider-edit-cancel">取消</button>
+            </div>
+          </form>
+
+          <div style="height: 14px"></div>
+
+          <div id="model-import" class="card stack hidden">
             <strong id="model-import-title">从供应商导入模型</strong>
             <div id="model-import-list" class="stack"></div>
             <div class="inline">
@@ -174,11 +199,11 @@ export function adminPage(props: AdminPageProps): Response {
               <form id="model-form" class="stack">
                 <strong>添加模型</strong>
                 <div class="form-grid">
-                  <div class="field"><label>模型 ID</label><input name="model" placeholder="claude-sonnet-4-5-20250514" required /></div>
+                  <div class="field"><label>模型</label><select id="add-model-select" name="model" required><option value="">请先选择供应商</option></select></div>
                   <div class="field"><label>显示名</label><input name="displayName" placeholder="Sonnet 4.5" required /></div>
                   <div class="field">
                     <label>供应商</label>
-                    <select name="providerId">
+                    <select name="providerId" id="add-model-provider">
                       {props.providers.map((provider) => <option value={provider.id}>{provider.name}</option>)}
                     </select>
                   </div>
@@ -199,7 +224,7 @@ export function adminPage(props: AdminPageProps): Response {
               </form>
           </div>
 
-          <form id="model-edit-form" class="card stack" hidden>
+          <form id="model-edit-form" class="card stack hidden">
             <strong>编辑模型</strong>
             <input type="hidden" name="_originalName" />
             <div class="form-grid">
@@ -273,7 +298,7 @@ export function adminPage(props: AdminPageProps): Response {
                           color={source === "github" ? "brand" : source === "tapd" ? "amber" : "blue"}
                           text={displayWebhookSource(source)}
                         />
-                        <span class="code-inline">/{String(w.path || "")}</span>
+                        <span class="code-inline" style="user-select:all">{props.origin}/webhooks/{String(w.path || "")}</span>
                       </div>
                     </div>
                   </div>
@@ -293,7 +318,7 @@ export function adminPage(props: AdminPageProps): Response {
               <form id="webhook-form" class="stack">
                 <strong>添加 Webhook</strong>
                 <div class="form-grid">
-                  <div class="field"><label>路径</label><input name="path" placeholder="daily-news" /></div>
+                  <div class="field"><label>路径（可选，留空则自动生成）</label><input name="path" placeholder="e.g. daily-news 或留空自动生成" /></div>
                   <div class="field"><label>名称</label><input name="name" placeholder="每日新闻" /></div>
                   <div class="field">
                     <label>消息来源</label>
@@ -315,10 +340,10 @@ export function adminPage(props: AdminPageProps): Response {
                     <label>目标机器人</label>
                     <div id="webhook-bot-ids" class="stack" style="gap:6px">
                       {props.bots.length ? props.bots.map((bot) => (
-                        <label class="row" style="padding:8px 12px">
-                          <span>
-                            <strong style="margin:0">{bot.bot_id}</strong>
-                            <span class="meta" style="font-size:12px">{bot.remark || ""}</span>
+                        <label class="row" style="padding:8px 12px;align-items:center;flex-direction:row">
+                          <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                            <strong style="margin:0;display:inline-block">{bot.bot_id}</strong>
+                            {bot.remark ? <span class="meta-chip" style="font-size:11px;padding:1px 6px">{bot.remark}</span> : null}
                           </span>
                           <input type="checkbox" name="bot_id" value={bot.bot_id} />
                         </label>
@@ -329,6 +354,23 @@ export function adminPage(props: AdminPageProps): Response {
                     <label>消息模板（可选）</label>
                     <input name="template" placeholder="💰 新订单 ${data.object.amount_total}" />
                     <span class="muted" style="font-size:12px;margin-top:4px">用 <code>$&#123;字段路径&#125;</code> 提取 JSON 字段，支持算术如 <code>$&#123;price * qty&#125;</code></span>
+                  </div>
+                  <div class="field full">
+                    <div class="callout" style="margin-top: 8px; border-color: var(--line);">
+                      <strong>💡 Webhook 数据转发规则说明</strong>
+                      <p style="font-size:12px;margin:4px 0 0;line-height:1.5">根据选择的<b>消息来源</b>，系统会自动解析并推送不同的内容：</p>
+                      <ul style="font-size:12px;color:var(--ink-muted);margin:6px 0 0;padding-left:20px;line-height:1.6">
+                        <li><b>GitHub</b>: 自动解析并格式化推送 <code>push</code>, <code>pull_request</code>, <code>issues</code> 等事件（包含提交数、分支、标题等）。</li>
+                        <li><b>TAPD</b>: 自动解析并翻译推送 <code>需求</code>, <code>缺陷</code>, <code>任务</code> 等创建与状态流转事件。</li>
+                        <li><b>通用/自定义</b>:
+                          <ul style="padding-left:15px;list-style-type:circle">
+                            <li>若配置了<b>消息模板</b>，系统将根据模板插值规则（支持如 <code>data.price * qty</code> 计算）提取并推送。</li>
+                            <li>若未配置模板，系统将自动尝试提取 JSON 体中的 <code>text</code>, <code>message</code> 或 <code>content</code> 字段。</li>
+                            <li>如均未找到，则将整个 JSON 转换为文本或直接转发原始纯文本。</li>
+                          </ul>
+                        </li>
+                      </ul>
+                    </div>
                   </div>
                 </div>
                 <div class="inline">
@@ -387,6 +429,22 @@ function toggleForm(btnId, modalId, cancelBtnId) {
   function showModal() {
     modal.classList.remove("hidden");
     btn.textContent = closeLabel;
+
+    // Hide edit form when opening add form
+    if (btnId === "toggle-provider-form") {
+      const editForm = document.getElementById("provider-edit-form");
+      if (editForm) editForm.classList.add("hidden");
+    } else if (btnId === "toggle-model-form") {
+      const editForm = document.getElementById("model-edit-form");
+      if (editForm) editForm.classList.add("hidden");
+    } else if (btnId === "toggle-webhook-form") {
+      const pathInput = modal.querySelector("[name=path]");
+      if (pathInput && !pathInput.value) {
+        const array = new Uint8Array(16);
+        window.crypto.getRandomValues(array);
+        pathInput.value = Array.from(array).map(b => b.toString(16).padStart(2, '0')).join('');
+      }
+    }
   }
   function hideModal() {
     modal.classList.add("hidden");
@@ -464,12 +522,75 @@ document.getElementById("image-provider-select")?.addEventListener("change", fun
   loadImageModels(this.value, "");
 });
 
+// Load available models when provider changes in "添加模型" form
+async function loadAddModelOptions(providerId) {
+  var sel = document.getElementById("add-model-select");
+  if (!sel) return;
+  if (!providerId) {
+    sel.innerHTML = '<option value="">请先选择供应商</option>';
+    return;
+  }
+  sel.innerHTML = '<option value="">加载中…</option>';
+  try {
+    var res = await api("GET", "/api/providers/" + encodeURIComponent(providerId) + "/models");
+    var models = res.models || [];
+    sel.innerHTML = models.map(function (m) {
+      return '<option value="' + m.id + '">' + m.name + '</option>';
+    }).join('');
+  } catch (err) {
+    sel.innerHTML = '<option value="">加载失败，请重试</option>';
+  }
+}
+
+document.getElementById("add-model-provider")?.addEventListener("change", function () {
+  loadAddModelOptions(this.value);
+});
+
+// Load models for the initially selected provider when page loads
+var initialProvider = document.getElementById("add-model-provider")?.value;
+if (initialProvider) loadAddModelOptions(initialProvider);
+
 document.querySelectorAll("[data-unbind-bot]").forEach((button) => {
   button.addEventListener("click", async () => {
     if (!confirm("确定要解除绑定吗？")) return;
     await api("POST", "/bot/" + button.dataset.unbindBot + "/unbind");
     location.reload();
   });
+});
+
+document.querySelectorAll("[data-edit-provider]").forEach((button) => {
+  button.addEventListener("click", () => {
+    // Hide the add form if open
+    const addFormWrap = document.getElementById("provider-form-wrap");
+    const toggleBtn = document.getElementById("toggle-provider-form");
+    if (addFormWrap && !addFormWrap.classList.contains("hidden")) {
+      addFormWrap.classList.add("hidden");
+      if (toggleBtn) toggleBtn.textContent = "+ 添加供应商";
+    }
+
+    var form = document.getElementById("provider-edit-form");
+    if (!form) return;
+    form.querySelector("[name=id]").value = button.dataset.editProvider;
+    form.querySelector("[name=name]").value = button.dataset.editProviderName;
+    form.querySelector("[name=type]").value = button.dataset.editProviderType;
+    form.querySelector("[name=baseUrl]").value = button.dataset.editProviderUrl;
+    form.querySelector("[name=apiKey]").value = "";
+    form.classList.remove("hidden");
+    form.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  });
+});
+
+document.getElementById("provider-edit-form")?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  var body = formToObject(event.currentTarget);
+  if (!body.apiKey) delete body.apiKey;
+  await api("PUT", "/api/providers/" + encodeURIComponent(body.id), body);
+  location.reload();
+});
+
+document.getElementById("provider-edit-cancel")?.addEventListener("click", () => {
+  var form = document.getElementById("provider-edit-form");
+  if (form) form.classList.add("hidden");
 });
 
 document.querySelectorAll("[data-delete-provider]").forEach((button) => {
@@ -488,6 +609,14 @@ document.querySelectorAll("[data-delete-model]").forEach((button) => {
 
 document.querySelectorAll("[data-edit-model]").forEach((button) => {
   button.addEventListener("click", () => {
+    // Hide the add form if open
+    const addFormWrap = document.getElementById("model-form-wrap");
+    const toggleBtn = document.getElementById("toggle-model-form");
+    if (addFormWrap && !addFormWrap.classList.contains("hidden")) {
+      addFormWrap.classList.add("hidden");
+      if (toggleBtn) toggleBtn.textContent = "+ 添加模型";
+    }
+
     const form = document.getElementById("model-edit-form");
     if (!form) return;
     form.querySelector("[name=_originalName]").value = button.dataset.editModel;
@@ -495,7 +624,7 @@ document.querySelectorAll("[data-edit-model]").forEach((button) => {
     form.querySelector("[name=displayName]").value = button.dataset.editModel;
     form.querySelector("[name=providerId]").value = button.dataset.editProvider;
     form.querySelector("[name=role]").value = button.dataset.editRole;
-    form.hidden = false;
+    form.classList.remove("hidden");
     form.scrollIntoView({ behavior: "smooth", block: "nearest" });
   });
 });
@@ -512,7 +641,7 @@ document.getElementById("model-edit-form")?.addEventListener("submit", async (ev
 
 document.getElementById("model-edit-cancel")?.addEventListener("click", () => {
   const form = document.getElementById("model-edit-form");
-  if (form) form.hidden = true;
+  if (form) form.classList.add("hidden");
 });
 
 document.querySelectorAll("[data-delete-webhook]").forEach((button) => {
@@ -537,7 +666,7 @@ document.querySelectorAll("[data-load-models]").forEach((button) => {
       const checked = imported.has(model.id);
       return '<label class="row"><span><strong>' + model.name + '</strong><span class="meta"><span class="code-inline">' + model.id + '</span></span></span><input type="checkbox" data-import-model="' + model.id + '" data-import-name="' + model.name + '" ' + (checked ? 'disabled' : '') + '></label>';
     }).join("") || '<p class="muted">未找到可导入的模型</p>';
-    wrap.hidden = false;
+    wrap.classList.remove("hidden");
   });
 });
 

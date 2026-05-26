@@ -495,7 +495,33 @@ select {
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-input:focus,
+input[type="checkbox"] {
+  width: auto;
+  height: auto;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  appearance: checkbox;
+  -webkit-appearance: checkbox;
+}
+
+input[type="radio"] {
+  width: auto;
+  height: auto;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  appearance: radio;
+  -webkit-appearance: radio;
+}
+
+input:not([type="checkbox"]):not([type="radio"]):focus,
 textarea:focus,
 select:focus {
   outline: none;
