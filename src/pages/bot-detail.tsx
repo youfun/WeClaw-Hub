@@ -1,7 +1,7 @@
 /** @jsxImportSource hono/jsx */
 
 import type { ScheduledTask, SystemTool } from "../types.ts";
-import { EmptyState, Section, renderPage } from "./layout.tsx";
+import { Chip, EmptyState, Section, StatusBadge, renderPage } from "./layout.tsx";
 
 type BotSettings = {
   remark: string;
@@ -20,6 +20,32 @@ type BotDetailProps = {
   models: Array<{ displayName: string }>;
 };
 
+function humanSchedule(task: ScheduledTask): string {
+  if (task.schedule.type === "interval") {
+    const ms = task.schedule.interval_ms ?? 0;
+    if (ms % 86_400_000 === 0) return `每 ${ms / 86_400_000} 天`;
+    if (ms % 3_600_000 === 0) return `每 ${ms / 3_600_000} 小时`;
+    return `每 ${ms / 60_000} 分钟`;
+  }
+  const cron = task.schedule.cron ?? "";
+  const daily = cron.match(/^(\d+)\s+(\d+)\s+\*\s+\*\s+\*$/);
+  if (daily) {
+    const mm = daily[1]!.padStart(2, "0");
+    const hh = daily[2]!.padStart(2, "0");
+    return `每天 ${hh}:${mm}`;
+  }
+  // weekly: MM HH * * DOW
+  const weekly = cron.match(/^(\d+)\s+(\d+)\s+\*\s+\*\s+(\d(?:[,-]\d)*)$/);
+  if (weekly) {
+    const mm = weekly[1]!.padStart(2, "0");
+    const hh = weekly[2]!.padStart(2, "0");
+    const dowMap = ["日", "一", "二", "三", "四", "五", "六"];
+    const days = weekly[3]!.split(",").map((d) => dowMap[Number(d)] ?? d).join(" ");
+    return `每周${days} ${hh}:${mm}`;
+  }
+  return cron;
+}
+
 export function botDetailPage(props: BotDetailProps): Response {
   const selectedTool = props.tools.find((tool) => tool.id === "fetch_analyze") ?? props.tools[0] ?? null;
   const payload = serialize({
@@ -29,11 +55,21 @@ export function botDetailPage(props: BotDetailProps): Response {
   });
 
   return renderPage({
-    title: `机器人配置 · ${props.botId}`,
-    subtitle: "集中管理 AI 模式、定时任务与用户记忆。",
+    title: `Bot 配置 · ${props.botId}`,
+    subtitle: "单 Bot 视图，集中管理 AI 模式、任务、记忆和后续 MCP 能力。",
+    activeNav: "admin",
     children: (
       <>
-        <Section title="基础设置" description="修改机器人的运行参数。">
+        <div class="breadcrumb">
+          <a href="/admin">← 管理台</a>
+          <span class="breadcrumb-sep">/</span>
+          <span class="breadcrumb-current">{props.botId}</span>
+        </div>
+        <Section
+          title="基础设置"
+          description="这里展示当前 Durable Object 上保存的机器人设置。"
+          dot="brand"
+        >
           <form id="settings-form" class="card stack">
             <div class="form-grid">
               <div class="field full">
@@ -57,15 +93,15 @@ export function botDetailPage(props: BotDetailProps): Response {
               <div class="field">
                 <label>保活</label>
                 <select name="keepalive">
-                  <option value="true" selected={props.settings.keepalive}>开启</option>
-                  <option value="false" selected={!props.settings.keepalive}>关闭</option>
+                  <option value="true" selected={props.settings.keepalive}>ON</option>
+                  <option value="false" selected={!props.settings.keepalive}>OFF</option>
                 </select>
               </div>
               <div class="field">
                 <label>接收 Webhook</label>
                 <select name="accept_webhook">
-                  <option value="true" selected={props.settings.accept_webhook}>开启</option>
-                  <option value="false" selected={!props.settings.accept_webhook}>关闭</option>
+                  <option value="true" selected={props.settings.accept_webhook}>ON</option>
+                  <option value="false" selected={!props.settings.accept_webhook}>OFF</option>
                 </select>
               </div>
             </div>
@@ -73,32 +109,44 @@ export function botDetailPage(props: BotDetailProps): Response {
           </form>
         </Section>
 
-        <Section title="AI 模式" description="智能模式会根据问题复杂度自动选择合适的模型。">
+        <Section
+          title="AI 模式"
+          description="family 模式优先按模型角色 daily / complex 自动选择。"
+          dot="terminal"
+        >
           <div class="row">
             <div>
-              <strong>{props.settings.agent_mode === "family" ? "智能选择" : "手动模式"}</strong>
+              <strong>{props.settings.agent_mode === "family" ? "家庭优化" : "指定模型"}</strong>
               <div class="meta">
-                <span>{props.settings.agent_mode === "family" ? "按复杂度自动选模" : "手动指定模型"}</span>
+                <Chip color="terminal" text={props.settings.agent_mode} />
                 <span>{props.settings.active_model || "自动选择"}</span>
               </div>
             </div>
           </div>
         </Section>
 
-        <Section title="定时任务" description="机器人按计划执行预设的工具调用。">
+        <Section
+          title="定时任务"
+          description="任务已切换为工具调用模型，使用 tool_id + tool_params 持久化。"
+          dot="wechat"
+        >
           <div class="grid">
             {props.tasks.length ? props.tasks.map((task) => (
-              <div class="row">
-                <div>
+              <div class={`row stripe-${task.enabled ? "ok" : "warn"}`} style="position:relative;overflow:hidden">
+                <div style="padding-left:4px">
                   <strong>{task.name}</strong>
                   <div class="meta">
-                    <span class="code">{formatSchedule(task.schedule)}</span>
-                    <span>{task.tool_id}</span>
+                    <span class="code-inline">{humanSchedule(task)}</span>
+                    <span class="meta-chip">{task.tool_id}</span>
                     <span>{task.last_run_at ? new Date(task.last_run_at).toLocaleString("zh-CN") : "未运行"}</span>
                   </div>
                 </div>
                 <div class="inline">
-                  <span class={task.enabled ? "badge ok" : "badge warn"}>{task.enabled ? "开启" : "关闭"}</span>
+                  <StatusBadge
+                    status={task.enabled ? "ok" : "warn"}
+                    text={task.enabled ? "ON" : "OFF"}
+                    pulse={task.enabled}
+                  />
                   <button class="button" type="button" data-edit-task={task.id}>编辑</button>
                   <button class="button" type="button" data-run-task={task.id}>运行</button>
                   <button class="button" type="button" data-toggle-task={task.id} data-next-enabled={task.enabled ? "false" : "true"}>{task.enabled ? "禁用" : "启用"}</button>
@@ -125,8 +173,32 @@ export function botDetailPage(props: BotDetailProps): Response {
                 </select>
               </div>
               <div class="field full">
-                <label>触发规则</label>
-                <input name="cron" value="0 8 * * *" />
+                <label>触发模式</label>
+                <select id="schedule-mode" name="schedule_mode">
+                  <option value="daily">每天</option>
+                  <option value="interval">间隔</option>
+                  <option value="cron">自定义 Cron</option>
+                </select>
+              </div>
+              <div id="schedule-daily" class="field full">
+                <label>执行时间</label>
+                <input type="time" id="daily-time" name="daily_time" value="08:00" />
+              </div>
+              <div id="schedule-interval" class="field full" style="display:none">
+                <label>执行间隔</label>
+                <div style="display:flex;gap:8px;align-items:center">
+                  <input type="number" id="interval-value" name="interval_value" value="30" min="1" style="width:80px" />
+                  <select id="interval-unit" name="interval_unit">
+                    <option value="minute">分钟</option>
+                    <option value="hour">小时</option>
+                    <option value="day">天</option>
+                  </select>
+                </div>
+              </div>
+              <div id="schedule-cron" class="field full" style="display:none">
+                <label>Cron 表达式</label>
+                <input id="cron-input" name="cron" value="0 8 * * *" />
+                <span class="helper">分 时 日 月 周 · 例：0 8 * * * = 每天 8:00</span>
               </div>
               <div id="task-param-fields" class="field full">
                 {selectedTool?.params.map((param) => (
@@ -146,7 +218,11 @@ export function botDetailPage(props: BotDetailProps): Response {
           </form>
         </Section>
 
-        <Section title="记忆管理" description="展示当前提取出的用户事实，支持逐条删除或清空。">
+        <Section
+          title="记忆管理"
+          description="展示当前提取出的用户事实，支持逐条删除或清空。"
+          dot="purple"
+        >
           <div class="grid">
             {props.notes.length ? props.notes.map((note, index) => (
               <div class="row">
@@ -165,8 +241,12 @@ export function botDetailPage(props: BotDetailProps): Response {
           <div class="inline"><button id="clear-memory" class="button" type="button">清空所有</button></div>
         </Section>
 
-        <Section title="MCP 端点" description="外部工具集成，后续开放。">
-          <div class="card"><span class="badge warn">开发中</span></div>
+        <Section
+          title="MCP 端点"
+          description="预留区，后续会接入 tools/list 自动发现。"
+          dot="amber"
+        >
+          <div class="card"><StatusBadge status="warn" text="暂未开放" /></div>
         </Section>
 
         <script dangerouslySetInnerHTML={{ __html: buildBotDetailScript(payload) }} />
@@ -215,13 +295,77 @@ function renderParamFields(toolId, values) {
   }).join("");
 }
 
+function switchScheduleMode(mode) {
+  document.getElementById("schedule-daily").style.display = mode === "daily" ? "" : "none";
+  document.getElementById("schedule-interval").style.display = mode === "interval" ? "" : "none";
+  document.getElementById("schedule-cron").style.display = mode === "cron" ? "" : "none";
+}
+
+function fillScheduleForm(schedule) {
+  if (schedule.type === "interval") {
+    document.getElementById("schedule-mode").value = "interval";
+    switchScheduleMode("interval");
+    const ms = schedule.interval_ms || 0;
+    if (ms % 86400000 === 0) {
+      document.getElementById("interval-value").value = ms / 86400000;
+      document.getElementById("interval-unit").value = "day";
+    } else if (ms % 3600000 === 0) {
+      document.getElementById("interval-value").value = ms / 3600000;
+      document.getElementById("interval-unit").value = "hour";
+    } else {
+      document.getElementById("interval-value").value = ms / 60000;
+      document.getElementById("interval-unit").value = "minute";
+    }
+    return;
+  }
+  const cron = schedule.cron || "";
+  const daily = cron.match(/^(\\d+)\\s+(\\d+)\\s+\\*\\s+\\*\\s+\\*$/);
+  if (daily) {
+    document.getElementById("schedule-mode").value = "daily";
+    switchScheduleMode("daily");
+    document.getElementById("daily-time").value = daily[2].padStart(2,"0") + ":" + daily[1].padStart(2,"0");
+    return;
+  }
+  document.getElementById("schedule-mode").value = "cron";
+  switchScheduleMode("cron");
+  document.getElementById("cron-input").value = cron;
+}
+
+function readScheduleFromForm() {
+  const mode = document.getElementById("schedule-mode").value;
+  if (mode === "daily") {
+    const t = document.getElementById("daily-time").value.split(":");
+    const mm = parseInt(t[1], 10);
+    const hh = parseInt(t[0], 10);
+    return { type: "cron", cron: mm + " " + hh + " * * *" };
+  }
+  if (mode === "interval") {
+    const val = parseInt(document.getElementById("interval-value").value, 10) || 30;
+    const unit = document.getElementById("interval-unit").value;
+    const ms = unit === "day" ? val * 86400000 : unit === "hour" ? val * 3600000 : val * 60000;
+    return { type: "interval", interval_ms: ms };
+  }
+  const cron = document.getElementById("cron-input").value || "0 8 * * *";
+  return { type: "cron", cron: cron };
+}
+
 document.getElementById("task-tool-id")?.addEventListener("change", (event) => {
   renderParamFields(event.currentTarget.value, {});
+});
+
+document.getElementById("schedule-mode")?.addEventListener("change", (event) => {
+  switchScheduleMode(event.currentTarget.value);
 });
 
 document.getElementById("task-reset")?.addEventListener("click", () => {
   document.getElementById("task-form")?.reset();
   document.getElementById("task-id").value = "";
+  document.getElementById("schedule-mode").value = "daily";
+  switchScheduleMode("daily");
+  document.getElementById("daily-time").value = "08:00";
+  document.getElementById("interval-value").value = "30";
+  document.getElementById("interval-unit").value = "minute";
+  document.getElementById("cron-input").value = "0 8 * * *";
   renderParamFields(document.getElementById("task-tool-id").value, {});
 });
 
@@ -252,7 +396,7 @@ document.getElementById("task-form")?.addEventListener("submit", async (event) =
     id: taskId || undefined,
     name: form.get("name"),
     enabled: true,
-    schedule: { type: "cron", cron: form.get("cron") },
+    schedule: readScheduleFromForm(),
     tool_id: form.get("tool_id"),
     tool_params: toolParams,
   };
@@ -271,7 +415,7 @@ document.querySelectorAll("[data-edit-task]").forEach((button) => {
     if (!task) return;
     document.getElementById("task-id").value = task.id;
     document.querySelector('[name="name"]').value = task.name;
-    document.querySelector('[name="cron"]').value = task.schedule.cron || "";
+    fillScheduleForm(task.schedule);
     document.getElementById("task-tool-id").value = task.tool_id;
     renderParamFields(task.tool_id, task.tool_params || {});
     window.scrollTo({ top: document.getElementById("task-form").offsetTop - 24, behavior: "smooth" });
@@ -313,20 +457,9 @@ document.getElementById("clear-memory")?.addEventListener("click", async () => {
   location.reload();
 });
 
+switchScheduleMode("daily");
 renderParamFields(document.getElementById("task-tool-id")?.value || (botDetail.tools[0] && botDetail.tools[0].id), {});
 `;
-}
-
-function formatSchedule(schedule: { type: string; cron?: string; interval_ms?: number }): string {
-  if (schedule.type === "cron" && schedule.cron) return schedule.cron;
-  if (schedule.interval_ms != null) {
-    const ms = schedule.interval_ms;
-    if (ms >= 3_600_000) return `${Math.round(ms / 3_600_000)} 小时`;
-    if (ms >= 60_000) return `${Math.round(ms / 60_000)} 分钟`;
-    if (ms >= 1_000) return `${Math.round(ms / 1_000)} 秒`;
-    return `${ms} 毫秒`;
-  }
-  return "—";
 }
 
 function serialize(value: unknown): string {
