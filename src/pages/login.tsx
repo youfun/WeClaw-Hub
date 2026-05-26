@@ -1,14 +1,15 @@
 /** @jsxImportSource hono/jsx */
 
-import { EmptyState, Section, renderPage } from "./layout.tsx";
+import { EmptyState, Section, StatusBadge, renderPage } from "./layout.tsx";
 
 export function loginPage(origin: string): Response {
   return renderPage({
     title: "微信消息中枢",
     subtitle: "扫描二维码登录 WeClaw Hub，管理机器人、模型、定时任务与 Webhook 路由。",
+    activeNav: "login",
     children: (
       <>
-        <Section title="扫码登录" description="页面会自动请求二维码并轮询登录状态。">
+        <Section title="扫码登录" description="页面会自动请求二维码并轮询登录状态。" dot="wechat">
           <div class="cards two">
             <div class="card stack">
               <div id="qr-box" class="qr-box">
@@ -21,11 +22,13 @@ export function loginPage(origin: string): Response {
             </div>
             <div class="card stack">
               <strong>登录流程</strong>
-              <p class="muted">1. 点击“刷新二维码”</p>
+              <p class="muted">1. 点击"刷新二维码"</p>
               <p class="muted">2. 使用微信扫描</p>
               <p class="muted">3. 确认授权后自动完成机器人绑定</p>
               <p class="footer-note">登录接口：{origin}/login/qr 与 {origin}/login/status</p>
-              <div id="login-status" class="badge warn">等待扫码</div>
+              <div id="login-status">
+                <StatusBadge status="warn" text="等待扫码" />
+              </div>
             </div>
           </div>
         </Section>
@@ -46,8 +49,7 @@ let currentRedirectHost = "";
 
 function setStatus(text, kind) {
   if (!statusEl) return;
-  statusEl.textContent = text;
-  statusEl.className = "badge " + (kind || "warn");
+  statusEl.innerHTML = '<span class="badge ' + (kind || "warn") + (kind === "ok" ? " badge-pulse" : "") + '">' + (kind === "ok" ? '<span class="badge-dot"></span>' : '') + text + '</span>';
 }
 
 async function poll(qrcode) {

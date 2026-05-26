@@ -92,7 +92,7 @@ export function adminPage(props: AdminPageProps): Response {
             <button id="toggle-provider-form" class="button" type="button">+ 添加供应商</button>
           </div>
 
-          <div id="provider-modal" class="modal-overlay" hidden>
+          <div id="provider-modal" class="modal-overlay hidden">
             <div class="modal-card">
               <form id="provider-form" class="stack">
                 <strong>添加供应商</strong>
@@ -167,32 +167,36 @@ export function adminPage(props: AdminPageProps): Response {
             <button id="toggle-model-form" class="button" type="button">+ 添加模型</button>
           </div>
 
-          <form id="model-form" class="card stack" hidden>
-            <strong>添加模型</strong>
-            <div class="form-grid">
-              <div class="field"><label>模型 ID</label><input name="model" placeholder="claude-sonnet-4-5-20250514" required /></div>
-              <div class="field"><label>显示名</label><input name="displayName" placeholder="Sonnet 4.5" required /></div>
-              <div class="field">
-                <label>供应商</label>
-                <select name="providerId">
-                  {props.providers.map((provider) => <option value={provider.id}>{provider.name}</option>)}
-                </select>
-              </div>
-              <div class="field">
-                <label>角色</label>
-                <select name="role">
-                  <option value="">未设置</option>
-                  <option value="daily">日常 — 聊天、简单问答</option>
-                  <option value="complex">复杂推理 — 编程、分析</option>
-                  <option value="extraction">记忆提取 — 推荐轻量模型</option>
-                </select>
-              </div>
+          <div id="model-modal" class="modal-overlay hidden">
+            <div class="modal-card">
+              <form id="model-form" class="stack">
+                <strong>添加模型</strong>
+                <div class="form-grid">
+                  <div class="field"><label>模型 ID</label><input name="model" placeholder="claude-sonnet-4-5-20250514" required /></div>
+                  <div class="field"><label>显示名</label><input name="displayName" placeholder="Sonnet 4.5" required /></div>
+                  <div class="field">
+                    <label>供应商</label>
+                    <select name="providerId">
+                      {props.providers.map((provider) => <option value={provider.id}>{provider.name}</option>)}
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>角色</label>
+                    <select name="role">
+                      <option value="">未设置</option>
+                      <option value="daily">日常 — 聊天、简单问答</option>
+                      <option value="complex">复杂推理 — 编程、分析</option>
+                      <option value="extraction">记忆提取 — 推荐轻量模型</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="inline">
+                  <button class="primary" type="submit">保存模型</button>
+                  <button class="button" type="button" id="cancel-model-form">取消</button>
+                </div>
+              </form>
             </div>
-            <div class="inline">
-              <button class="primary" type="submit">保存模型</button>
-              <button class="button" type="button" id="cancel-model-form">取消</button>
-            </div>
-          </form>
+          </div>
 
           <form id="model-edit-form" class="card stack" hidden>
             <strong>编辑模型</strong>
@@ -259,7 +263,7 @@ export function adminPage(props: AdminPageProps): Response {
             <button id="toggle-webhook-form" class="button" type="button">+ 添加 Webhook</button>
           </div>
 
-          <div id="webhook-modal" class="modal-overlay" hidden>
+          <div id="webhook-modal" class="modal-overlay hidden">
             <div class="modal-card">
               <form id="webhook-form" class="stack">
                 <strong>添加 Webhook</strong>
@@ -348,34 +352,32 @@ function formToObject(form) {
   return Object.fromEntries(new FormData(form).entries());
 }
 
-function toggleForm(btnId, formId, cancelBtnId) {
+function toggleForm(btnId, modalId, cancelBtnId) {
   const btn = document.getElementById(btnId);
-  const form = document.getElementById(formId);
+  const modal = document.getElementById(modalId);
   const cancelBtn = document.getElementById(cancelBtnId);
-  if (!btn || !form) return;
-  const addLabel = btn.textContent;
-  const closeLabel = "− 收起";
+  if (!btn || !modal) return;
+  var addLabel = btn.textContent;
+  var closeLabel = "− 收起";
 
-  function showForm() {
-    form.hidden = false;
+  function showModal() {
+    modal.classList.remove("hidden");
     btn.textContent = closeLabel;
-    form.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
-  function hideForm() {
-    form.hidden = true;
+  function hideModal() {
+    modal.classList.add("hidden");
     btn.textContent = addLabel;
   }
 
-  btn.addEventListener("click", () => {
-    form.hidden ? showForm() : hideForm();
+  btn.addEventListener("click", function () {
+    modal.classList.contains("hidden") ? showModal() : hideModal();
   });
-  if (cancelBtn) {
-    cancelBtn.addEventListener("click", hideForm);
-  }
+  if (cancelBtn) cancelBtn.addEventListener("click", hideModal);
+  modal.addEventListener("click", function (e) { if (e.target === modal) hideModal(); });
 }
-toggleForm("toggle-provider-form", "provider-form", "cancel-provider-form");
-toggleForm("toggle-model-form", "model-form", "cancel-model-form");
-toggleForm("toggle-webhook-form", "webhook-form", "cancel-webhook-form");
+toggleForm("toggle-provider-form", "provider-modal", "cancel-provider-form");
+toggleForm("toggle-model-form", "model-modal", "cancel-model-form");
+toggleForm("toggle-webhook-form", "webhook-modal", "cancel-webhook-form");
 
 document.getElementById("provider-form")?.addEventListener("submit", async (event) => {
   event.preventDefault();
