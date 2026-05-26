@@ -1909,7 +1909,7 @@ export class BotSession implements DurableObject {
     });
   }
 
-  // ---- Streaming reply ----
+  // ---- Streaming reply (LLM streams, single WeChat message) ----
 
   private async sendStreamingReply(
     creds: Credentials,
@@ -1922,39 +1922,13 @@ export class BotSession implements DurableObject {
   ): Promise<void> {
     const runId = newClientId();
     let fullText = "";
-    let lastSent = "";
-    let lastSentTime = Date.now();
-    const BATCH_CHARS = 30;
-    const BATCH_MS = 300;
+    let chunkCount = 0;
 
     try {
       console.log(`[stream] callClaudeStream beginning, displayName=${displayName}`);
-      let chunkCount = 0;
       for await (const chunk of callClaudeStream(messages, systemPrompt, llmConfig)) {
         fullText += chunk;
         chunkCount++;
-
-        const sinceChars = fullText.length - lastSent.length;
-        const sinceMs = Date.now() - lastSentTime;
-        if (sinceChars >= BATCH_CHARS || sinceMs >= BATCH_MS) {
-          lastSent = fullText;
-          lastSentTime = Date.now();
-          const displayText = `[${displayName}]\n${fullText}`;
-          console.log(`[stream] partial send chars=${fullText.length} chunks=${chunkCount}`);
-          sendMessage(creds, {
-            msg: {
-              from_user_id: creds.ilink_bot_id,
-              to_user_id: userId,
-              client_id: newClientId(),
-              message_type: MessageType.Bot,
-              message_state: MessageState.Generating,
-              item_list: [{ type: ItemType.Text, text_item: { text: displayText } }],
-              context_token: contextToken,
-              run_id: runId,
-            },
-            base_info: { channel_version: CHANNEL_VERSION },
-          }).catch((err) => console.error(`[stream] partial send error:`, err));
-        }
       }
 
       const finalText = fullText || "AI 无法回应：接口返回空内容";
