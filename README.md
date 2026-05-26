@@ -55,7 +55,7 @@ Authorization: Bearer 你的AUTH_TOKEN
 |------|------|----------|
 | `AUTH_TOKEN` | 管理 API 认证密钥，所有管理操作需要此 Token | `wrangler secret put AUTH_TOKEN` |
 
-本地开发时 `AUTH_TOKEN` 使用 `wrangler.toml` 里的默认值，无需额外设置。
+本地开发时不要把 `AUTH_TOKEN` 写入 `wrangler.toml`；复制 `.dev.vars.example` 为 `.dev.vars`，在本地文件中设置。
 
 ### AI 模型配置
 
@@ -108,10 +108,12 @@ bun run deploy
 ### 本地开发
 
 ```bash
+cp .dev.vars.example .dev.vars
+# 按需编辑 .dev.vars；至少需要 AUTH_TOKEN
 bun run dev    # http://localhost:8787
 ```
 
-本地开发时 KV 和 DO 数据保存在本地（`--local` 模式）。
+本地开发时 KV 和 DO 数据保存在本地（`--local` 模式）。`.dev.vars` 只用于本地且已被 `.gitignore` 忽略；线上密钥请用 `wrangler secret put`。
 
 ## 使用
 
@@ -196,6 +198,12 @@ bun run dev    # http://localhost:8787
 | `POST /api/models` | 添加模型 |
 | `PATCH /api/image-config` | 修改生图配置 |
 | `ALL /bot/:id/*` | Bot DO 代理（任务、记忆、设置等） |
+
+## 路线图
+
+- [ ] **定时任务 Agent 动作**：`AI 生成`（让 AI 按提示词生成消息）和 `抓取并分析`（定时抓取网页，AI 总结后推送）
+- [ ] **MCP 端点**：支持接入外部工具，扩展机器人能力
+- [ ] **Webhook 增强**：支持更多内置解析器（Stripe、PagerDuty 等）
 
 ## License
 
