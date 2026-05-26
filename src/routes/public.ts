@@ -40,7 +40,7 @@ publicRoutes.post("/webhooks/:path", async (c) => {
   }
 
   // Use config.source for the parser (not the URL path)
-  const text = parseWebhookMessage(config.source, payload, c.req.raw.headers);
+  const text = parseWebhookMessage(config.source, payload, c.req.raw.headers, config.template);
   if (!text) return c.json({ ok: true, ignored: true });
 
   const delivered = await deliverWebhookMessage(c.env, config, text);

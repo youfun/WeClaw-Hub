@@ -71,7 +71,7 @@ loginRoutes.get("/login/status", async (c) => {
         body: JSON.stringify({
           bot_token: status.bot_token,
           ilink_bot_id: status.ilink_bot_id,
-          baseurl: status.baseurl ?? "",
+          baseurl: status.baseurl ?? status.base_url ?? "",
           ilink_user_id: status.ilink_user_id ?? "",
         }),
       }));

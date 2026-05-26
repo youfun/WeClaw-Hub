@@ -22,13 +22,19 @@ import type {
   BridgeMessage,
   BridgeReply,
   LlmProvider,
+  ImageItem,
+  MessageItem,
 } from "./types.ts";
 import { MessageType, MessageState, ItemType, TypingStatus } from "./types.ts";
 import {
   getUpdates,
   sendMessage,
+  getUploadUrl,
+  uploadToCDN,
   getConfig,
   sendTyping,
+  notifyStart,
+  notifyStop,
   newClientId,
   extractText,
   CHANNEL_VERSION,
@@ -36,15 +42,19 @@ import {
 import type { Message, LLMConfig } from "./agent.ts";
 import {
   callClaude,
+  callClaudeStream,
+  generateImage,
   DEFAULT_ANTHROPIC_MODEL,
   DEFAULT_OPENAI_MODEL,
   isDifficultQuery,
 } from "./agent.ts";
+import type { ImageGenResult } from "./agent.ts";
 import type { CustomModel } from "./types.ts";
 import { parseRoute, HELP_TEXT } from "./router.ts";
 import { computeNextRun } from "./scheduler.ts";
 import type { ScheduledTask } from "./types.ts";
 import { stripHtml } from "./tools.ts";
+import { downloadImage, inferImageMediaType, aesEcbEncrypt, aesEcbPaddedSize, md5 } from "./cdn.ts";
 
 const ERR_SESSION_EXPIRED = -14;
 const SESSION_PAUSE_MS = 60 * 60 * 1_000; // 1 hour pause on session expiry
@@ -52,6 +62,9 @@ const SESSION_PAUSE_MS = 60 * 60 * 1_000; // 1 hour pause on session expiry
 const BACKOFF_SHORT_MS = 2_000;
 const BACKOFF_LONG_MS = 30_000;
 const BACKOFF_THRESHOLD = 3;
+const MIN_ALARM_DELAY_MS = 1_000;
+const TASK_FAILURE_BACKOFF_BASE_MS = 60_000;
+const TASK_FAILURE_BACKOFF_MAX_MS = 15 * 60_000;
 
 const TYPING_TICKET_TTL_MS = 5 * 60 * 1_000; // cache typing ticket 5 minutes
 const CHAT_HISTORY_LIMIT = 100; // 50 turns = 100 messages
@@ -60,6 +73,17 @@ const MEMORY_LIMIT = 40;
 const MEMORY_CONTEXT_LIMIT = 20;
 const MEMORY_VIEW_LIMIT = 10;
 const MEMORY_RECENCY_DAYS = 14;
+const IMAGE_PLACEHOLDER = "[图片]";
+const IMAGE_DOWNLOAD_FAILED_PLACEHOLDER = "[图片（无法获取，请发文字描述）]";
+
+export function extractImageItem(items: MessageItem[]): ImageItem | null {
+  for (const item of items) {
+    if (item.type === ItemType.Image && item.image_item) {
+      return item.image_item;
+    }
+  }
+  return null;
+}
 
 interface BotSettings {
   remark: string;
@@ -134,6 +158,9 @@ CREATE TABLE IF NOT EXISTS scheduled_tasks (
   schedule TEXT NOT NULL,
   tool_id TEXT NOT NULL,
   tool_params TEXT NOT NULL DEFAULT '{}',
+  failure_count INTEGER NOT NULL DEFAULT 0,
+  last_failed_at INTEGER,
+  last_error TEXT,
   last_run_at INTEGER,
   next_run_at INTEGER,
   created_at INTEGER NOT NULL
@@ -174,6 +201,25 @@ export class BotSession implements DurableObject {
     if (this.initialized) return;
     this.state.storage.sql.exec(SCHEMA);
     this.initialized = true;
+  }
+
+  private runMigrations(): void {
+    // Add failure tracking columns to scheduled_tasks (safe to run on existing tables)
+    try {
+      this.state.storage.sql.exec(
+        "ALTER TABLE scheduled_tasks ADD COLUMN failure_count INTEGER NOT NULL DEFAULT 0"
+      );
+    } catch { /* column already exists, ignore */ }
+    try {
+      this.state.storage.sql.exec(
+        "ALTER TABLE scheduled_tasks ADD COLUMN last_failed_at INTEGER"
+      );
+    } catch { /* column already exists, ignore */ }
+    try {
+      this.state.storage.sql.exec(
+        "ALTER TABLE scheduled_tasks ADD COLUMN last_error TEXT"
+      );
+    } catch { /* column already exists, ignore */ }
   }
 
   // ---- KV helpers ----
@@ -693,7 +739,7 @@ export class BotSession implements DurableObject {
   private loadScheduledTasks(): ScheduledTask[] {
     const rows = this.state.storage.sql
       .exec(
-        "SELECT id, name, enabled, schedule, tool_id, tool_params, last_run_at, next_run_at, created_at FROM scheduled_tasks ORDER BY COALESCE(next_run_at, created_at) ASC, created_at ASC",
+        "SELECT id, name, enabled, schedule, tool_id, tool_params, failure_count, last_failed_at, last_error, last_run_at, next_run_at, created_at FROM scheduled_tasks ORDER BY COALESCE(next_run_at, created_at) ASC, created_at ASC",
       )
       .toArray();
 
@@ -704,6 +750,9 @@ export class BotSession implements DurableObject {
       schedule: JSON.parse(row.schedule as string) as ScheduledTask["schedule"],
       tool_id: row.tool_id as string,
       tool_params: JSON.parse((row.tool_params as string | null) ?? "{}") as Record<string, unknown>,
+      failure_count: row.failure_count === null || row.failure_count === undefined ? undefined : Number(row.failure_count),
+      last_failed_at: row.last_failed_at === null || row.last_failed_at === undefined ? undefined : Number(row.last_failed_at),
+      last_error: (row.last_error as string | null) ?? undefined,
       last_run_at: row.last_run_at === null || row.last_run_at === undefined ? undefined : Number(row.last_run_at),
       next_run_at: row.next_run_at === null || row.next_run_at === undefined ? undefined : Number(row.next_run_at),
       created_at: Number(row.created_at),
@@ -713,14 +762,17 @@ export class BotSession implements DurableObject {
   private saveScheduledTask(task: ScheduledTask): void {
     this.state.storage.sql.exec(
       `INSERT OR REPLACE INTO scheduled_tasks
-       (id, name, enabled, schedule, tool_id, tool_params, last_run_at, next_run_at, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, name, enabled, schedule, tool_id, tool_params, failure_count, last_failed_at, last_error, last_run_at, next_run_at, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       task.id,
       task.name,
       task.enabled ? 1 : 0,
       JSON.stringify(task.schedule),
       task.tool_id,
       JSON.stringify(task.tool_params ?? {}),
+      task.failure_count ?? 0,
+      task.last_failed_at ?? null,
+      task.last_error ?? null,
       task.last_run_at ?? null,
       task.next_run_at ?? null,
       task.created_at,
@@ -809,24 +861,70 @@ export class BotSession implements DurableObject {
         await this.executeTask(task, creds);
         const updated: ScheduledTask = {
           ...task,
+          failure_count: 0,
+          last_failed_at: undefined,
+          last_error: undefined,
           last_run_at: now,
           next_run_at: computeNextRun(task.schedule, now),
         };
         this.saveScheduledTask(updated);
       } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : String(err);
         console.error("[task] execution failed:", err);
+        const failureCount = (task.failure_count ?? 0) + 1;
+        const backoffMs = Math.min(
+          TASK_FAILURE_BACKOFF_BASE_MS * (2 ** (failureCount - 1)),
+          TASK_FAILURE_BACKOFF_MAX_MS,
+        );
+        this.saveScheduledTask({
+          ...task,
+          failure_count: failureCount,
+          last_failed_at: now,
+          last_error: errorMessage,
+          next_run_at: now + backoffMs,
+        });
       }
     }
   }
 
   private async scheduleNextAlarm(pollDelayMs: number): Promise<void> {
     const now = Date.now();
+    const pollAt = now + Math.max(pollDelayMs, MIN_ALARM_DELAY_MS);
+
     const rows = this.state.storage.sql
       .exec("SELECT MIN(next_run_at) AS next_run_at FROM scheduled_tasks WHERE enabled = 1")
       .toArray();
-    const nextTaskAt = rows.length ? (rows[0]!.next_run_at === null || rows[0]!.next_run_at === undefined ? null : Number(rows[0]!.next_run_at)) : null;
-    const nextAlarmAt = nextTaskAt !== null ? Math.min(now + pollDelayMs, nextTaskAt) : now + pollDelayMs;
+
+    const rawNextTaskAt = rows.length && rows[0]!.next_run_at != null
+      ? Number(rows[0]!.next_run_at)
+      : null;
+
+    const taskAt = rawNextTaskAt === null
+      ? null
+      : Math.max(rawNextTaskAt, now + MIN_ALARM_DELAY_MS);
+
+    const nextAlarmAt = taskAt !== null
+      ? Math.min(pollAt, taskAt)
+      : pollAt;
+
     await this.state.storage.setAlarm(nextAlarmAt);
+  }
+
+  private async buildModelListText(): Promise<string> {
+    const models = await this.loadModels();
+    if (!models.length) return "未配置任何模型。";
+
+    const settings = this.getBotSettings();
+    const activeName = settings.active_model || await this.env.BACKENDS.get("llm:active");
+    const activeModel = (activeName && models.find((m) => m.displayName === activeName)) || models[0] || null;
+    return [
+      "可选模型：",
+      ...models.map((model, index) =>
+        `${index + 1}. ${model.displayName}${model.displayName === activeModel?.displayName ? " ← 当前" : ""}`
+      ),
+      "",
+      "发送 /model <编号> 或 /model <名称> 切换。",
+    ].join("\n");
   }
 
   private async buildModeStatusText(): Promise<string> {
@@ -922,11 +1020,14 @@ export class BotSession implements DurableObject {
 
   async fetch(request: Request): Promise<Response> {
     this.ensureSchema();
+    this.runMigrations();
     const url = new URL(request.url);
 
     switch (url.pathname) {
       case "/login":
         return this.handleLogin(request);
+      case "/unbind":
+        return this.handleUnbind();
       case "/rate-limit":
         return this.handleRateLimit(request);
       case "/send":
@@ -960,6 +1061,36 @@ export class BotSession implements DurableObject {
     }
   }
 
+  // POST /unbind — clear credentials and stop polling
+  private async handleUnbind(): Promise<Response> {
+    const creds = this.getCredentials();
+    if (!creds) return json({ error: "not logged in" }, 400);
+
+    const botId = creds.ilink_bot_id;
+
+    // Remove from bots index
+    try {
+      const raw = await this.env.BACKENDS.get("bots");
+      const bots: string[] = raw ? (JSON.parse(raw) as string[]) : [];
+      const updated = bots.filter((id) => id !== botId);
+      await this.env.BACKENDS.put("bots", JSON.stringify(updated));
+    } catch (err) {
+      console.error("[unbind] updateBotsIndex failed:", err);
+    }
+
+    // Clear credentials and stop polling
+    try {
+      await notifyStop(creds);
+    } catch (err) {
+      console.error("[unbind] notifyStop failed:", err);
+    }
+
+    this.kvDelete("credentials");
+    this.kvDelete("get_updates_buf");
+    await this.state.storage.deleteAlarm();
+    console.log(`[unbind] bot ${botId} unbound`);
+    return json({ ok: true, message: "unbound" });
+  }
   // POST /login — save credentials and start polling
   private async handleLogin(request: Request): Promise<Response> {
     const creds = (await request.json()) as Credentials;
@@ -969,6 +1100,11 @@ export class BotSession implements DurableObject {
     this.setCredentials(creds);
     this.setUpdatesBuf("");
     this.consecutiveFailures = 0;
+    try {
+      await notifyStart(creds);
+    } catch (err) {
+      console.error("[login] notifyStart failed:", err);
+    }
     await this.state.storage.setAlarm(Date.now() + 100);
     await this.updateBotsIndex(creds.ilink_bot_id);
     return json({ ok: true, message: "credentials saved, polling started" });
@@ -1154,6 +1290,7 @@ export class BotSession implements DurableObject {
       };
 
       this.saveScheduledTask(task);
+      await this.scheduleNextAlarm(100);
       return json({ ok: true, task });
     }
 
@@ -1183,11 +1320,13 @@ export class BotSession implements DurableObject {
         updated.next_run_at = computeNextRun(updated.schedule, Date.now());
       }
       this.saveScheduledTask(updated);
+      await this.scheduleNextAlarm(100);
       return json({ ok: true, task: updated });
     }
 
     if (request.method === "DELETE") {
       this.deleteScheduledTask(taskId);
+      await this.scheduleNextAlarm(100);
       return json({ ok: true });
     }
 
@@ -1211,10 +1350,14 @@ export class BotSession implements DurableObject {
     const now = Date.now();
     const updated: ScheduledTask = {
       ...task,
+      failure_count: 0,
+      last_failed_at: undefined,
+      last_error: undefined,
       last_run_at: now,
       next_run_at: computeNextRun(task.schedule, now),
     };
     this.saveScheduledTask(updated);
+    await this.scheduleNextAlarm(100);
     return json({ ok: true, task: updated });
   }
 
@@ -1223,12 +1366,25 @@ export class BotSession implements DurableObject {
     const creds = this.getCredentials();
     if (!creds) return json({ error: "not logged in" }, 401);
     this.consecutiveFailures = 0;
+    try {
+      await notifyStart(creds);
+    } catch (err) {
+      console.error("[start] notifyStart failed:", err);
+    }
     await this.state.storage.setAlarm(Date.now() + 100);
     return json({ ok: true, message: "polling started" });
   }
 
   // POST /stop
   private async handleStop(): Promise<Response> {
+    const creds = this.getCredentials();
+    if (creds) {
+      try {
+        await notifyStop(creds);
+      } catch (err) {
+        console.error("[stop] notifyStop failed:", err);
+      }
+    }
     await this.state.storage.deleteAlarm();
     return json({ ok: true, message: "polling stopped" });
   }
@@ -1347,6 +1503,7 @@ export class BotSession implements DurableObject {
 
   async alarm(): Promise<void> {
     this.ensureSchema();
+    this.runMigrations();
 
     // Heartbeat bridge sessions every BRIDGE_PING_INTERVAL_MS
     const now = Date.now();
@@ -1355,15 +1512,21 @@ export class BotSession implements DurableObject {
       this.lastBridgePing = now;
     }
 
-    // Check session pause (after errcode -14)
+    const creds = this.getCredentials();
+    if (!creds) return;
+
+    // MVP fix 1+2: Run tasks BEFORE getUpdates — tasks are independent of poll success.
+    // Session expired / poll errors only affect message reception, not scheduled tasks.
+    await this.runDueScheduledTasks(creds);
+
+    // MVP fix 2: Session expired only pauses polling, not scheduled tasks.
     const pausedUntil = this.kvGet("paused_until");
-    if (pausedUntil && Date.now() < Number(pausedUntil)) {
+    const isPollingPaused = pausedUntil && Date.now() < Number(pausedUntil);
+
+    if (isPollingPaused) {
       await this.scheduleNextAlarm(60_000);
       return;
     }
-
-    const creds = this.getCredentials();
-    if (!creds) return;
 
     try {
       const buf = this.getUpdatesBuf();
@@ -1393,8 +1556,6 @@ export class BotSession implements DurableObject {
 
       // Success — reset failures
       this.consecutiveFailures = 0;
-
-      await this.runDueScheduledTasks(creds);
 
       // Update sync buffer
       if (resp.get_updates_buf && resp.get_updates_buf !== buf) {
@@ -1478,12 +1639,14 @@ export class BotSession implements DurableObject {
     }
 
     const text = extractText(msg.item_list);
-    if (!text) return;
+  const imageItem = extractImageItem(msg.item_list);
+  if (!text && !imageItem) return;
 
     const userId = msg.from_user_id;
     const contextToken = msg.context_token;
+  const summaryText = text || IMAGE_PLACEHOLDER;
 
-    console.log(`[msg] from=${userId} text="${text.slice(0, 80)}"`);
+  console.log(`[msg] from=${userId} text="${summaryText.slice(0, 80)}" image=${imageItem ? "yes" : "no"}`);
 
     // Schedule keepalive reminder when bot owner sends a message
     if (userId === creds.ilink_user_id && this.kvGet("keepalive") === "1") {
@@ -1500,10 +1663,10 @@ export class BotSession implements DurableObject {
         type: "message",
         msg_id: msgId,
         from: userId,
-        text,
+        text: summaryText,
         context_token: contextToken,
       };
-      session.pending.set(msgId, { userId, contextToken, text });
+      session.pending.set(msgId, { userId, contextToken, text: summaryText });
       try {
         session.ws.send(JSON.stringify(bridgeMsg));
         console.log(`[bridge] forwarded msg_id=${msgId}`);
@@ -1517,11 +1680,12 @@ export class BotSession implements DurableObject {
     }
 
     // Priority 2: Backend webhook routing
-    const backendHandled = await this.routeToBackends(creds, userId, text, contextToken);
+    const backendHandled = await this.routeToBackends(creds, userId, summaryText, contextToken);
     if (backendHandled) return;
 
     // Priority 3: Internal agent (Claude + commands)
-    await this.handleWithAgent(creds, userId, text, contextToken);
+    console.log(`[agent] routing to agent, text="${text.slice(0,40)}"`);
+    await this.handleWithAgent(creds, userId, text, contextToken, imageItem);
   }
 
   // ---- Backend routing ----
@@ -1606,6 +1770,7 @@ export class BotSession implements DurableObject {
     userId: string,
     text: string,
     contextToken: string,
+    imageItem?: ImageItem | null,
   ): Promise<void> {
     const action = parseRoute(text);
     let replyText: string;
@@ -1625,34 +1790,37 @@ export class BotSession implements DurableObject {
         break;
 
       case "model": {
+        const modelArgs = action.args.toLowerCase();
+        if (modelArgs === "manual") {
+          this.setAgentMode("manual");
+          replyText = `已切换到 ${await this.buildModeStatusText()}\n\n${await this.buildModelListText()}`;
+          break;
+        }
+        if (modelArgs === "family") {
+          this.setAgentMode("family");
+          replyText = `已切换到 ${await this.buildModeStatusText()}`;
+          break;
+        }
+
         if (this.getAgentMode() === "family") {
-          replyText = "当前为 family 自动选模模式。发送 /mode manual 后可使用 /model 手动切换。";
+          replyText = "当前为 family 自动选模模式。发送 /mode manual 或 /model manual 后可使用 /model 手动切换。";
           break;
         }
 
         const models = await this.loadModels();
-        const activeName = await this.env.BACKENDS.get("llm:active");
+        const settings = this.getBotSettings();
+        const activeName = settings.active_model || await this.env.BACKENDS.get("llm:active");
         const activeModel = (activeName && models.find((m) => m.displayName === activeName)) || models[0] || null;
 
         if (!action.args) {
-          // Show current model
-          if (!activeModel) {
-            replyText = "未配置模型，请在管理页面添加。";
-          } else {
-            replyText = `当前模型：${activeModel.displayName}`;
-          }
+          replyText = activeModel
+            ? `当前模型：${activeModel.displayName}\n\n${await this.buildModelListText()}`
+            : "未配置模型，请在管理页面添加。";
           break;
         }
 
-        if (action.args === "list") {
-          if (!models.length) {
-            replyText = "未配置任何模型。";
-          } else {
-            const lines = models.map((m, i) =>
-              `${i + 1}. ${m.displayName}${m.displayName === activeModel?.displayName ? " ← 当前" : ""}`
-            );
-            replyText = lines.join("\n");
-          }
+        if (modelArgs === "list") {
+          replyText = await this.buildModelListText();
           break;
         }
 
@@ -1684,7 +1852,9 @@ export class BotSession implements DurableObject {
         }
 
         this.setAgentMode(nextMode);
-        replyText = `已切换到 ${await this.buildModeStatusText()}`;
+        replyText = nextMode === "manual"
+          ? `已切换到 ${await this.buildModeStatusText()}\n\n${await this.buildModelListText()}`
+          : `已切换到 ${await this.buildModeStatusText()}`;
         break;
       }
 
@@ -1717,19 +1887,69 @@ export class BotSession implements DurableObject {
         break;
       }
 
+      case "draw": {
+        if (!action.prompt) {
+          replyText = "请输入提示词，例如：/draw 一只猫";
+          break;
+        }
+        // Check if image provider is configured
+        const imgProviderId = await this.env.BACKENDS.get("llm:image_provider_id");
+        if (!imgProviderId) {
+          replyText = "暂不支持，请先在管理台配置生图供应商。";
+          break;
+        }
+        await this.sendTypingTo(creds, userId, contextToken);
+        console.log(`[draw] prompt="${action.prompt.slice(0, 40)}"`);
+        await this.handleDrawCommand(creds, userId, contextToken, action.prompt);
+        return; // Already sent reply
+      }
+
       case "agent": {
-        if (!action.message) {
+        const hasImage = Boolean(imageItem);
+        if (!action.message && !hasImage) {
           replyText = "请输入消息";
           break;
         }
         // Send typing indicator before calling LLM
         await this.sendTypingTo(creds, userId, contextToken);
-        this.addChatHistory(userId, "user", action.message);
+        let imageData: Message["image"] | undefined;
+        let userContent = action.message || IMAGE_PLACEHOLDER;
+
+        if (imageItem) {
+          const imageBytes = await downloadImage(imageItem);
+          if (imageBytes) {
+            imageData = {
+              data: imageBytes,
+              mediaType: inferImageMediaType(imageBytes, imageItem),
+            };
+          } else if (!action.message) {
+            userContent = IMAGE_DOWNLOAD_FAILED_PLACEHOLDER;
+          }
+        }
+
+        this.addChatHistory(userId, "user", userContent);
         const history = this.getChatHistory(userId);
-        const { config: llmConfig, displayName } = await this.getActiveLLMConfig(action.message);
+        const currentMessage: Message = {
+          role: "user",
+          content: userContent,
+          image: imageData,
+        };
+        const { config: llmConfig, displayName } = await this.getActiveLLMConfig(action.message || userContent);
+        console.log(`[agent] model=${displayName} baseUrl=${llmConfig.baseUrl || "anthropic"} streaming=${!imageData}`);
         const memoryContext = await this.buildMemoryContext();
         const systemPrompt = (this.env.SYSTEM_PROMPT ?? "你是一个有用的AI助手。") + memoryContext;
-        const raw = await callClaude(history, systemPrompt, llmConfig);
+
+        // Streaming for text-only messages; fallback to non-streaming for images
+        if (!imageData) {
+          console.log(`[stream] starting for userId=${userId}`);
+          await this.sendStreamingReply(creds, userId, contextToken,
+            [...history, currentMessage], systemPrompt, llmConfig, displayName);
+          console.log(`[stream] completed for userId=${userId}`);
+          this.state.waitUntil(this.extractMemories(userId, llmConfig));
+          return; // Already sent the reply via stream
+        }
+
+        const raw = await callClaude([...history, currentMessage], systemPrompt, llmConfig);
         this.addChatHistory(userId, "assistant", raw);
         this.state.waitUntil(this.extractMemories(userId, llmConfig));
         replyText = `[${displayName}]\n${raw}`;
@@ -1754,6 +1974,213 @@ export class BotSession implements DurableObject {
     });
   }
 
+  // ---- Streaming reply (LLM streams, single WeChat message) ----
+
+  private async sendStreamingReply(
+    creds: Credentials,
+    userId: string,
+    contextToken: string,
+    messages: Message[],
+    systemPrompt: string,
+    llmConfig: LLMConfig,
+    displayName: string,
+  ): Promise<void> {
+    const runId = newClientId();
+    let fullText = "";
+    let chunkCount = 0;
+
+    try {
+      console.log(`[stream] callClaudeStream beginning, displayName=${displayName}`);
+      for await (const chunk of callClaudeStream(messages, systemPrompt, llmConfig)) {
+        fullText += chunk;
+        chunkCount++;
+      }
+
+      const finalText = fullText || "AI 无法回应：接口返回空内容";
+      this.addChatHistory(userId, "assistant", finalText);
+      const displayText = `[${displayName}]\n${finalText}`;
+      console.log(`[stream] final send chars=${finalText.length} totalChunks=${chunkCount}`);
+      await sendMessage(creds, {
+        msg: {
+          from_user_id: creds.ilink_bot_id,
+          to_user_id: userId,
+          client_id: newClientId(),
+          message_type: MessageType.Bot,
+          message_state: MessageState.Finish,
+          item_list: [{ type: ItemType.Text, text_item: { text: displayText } }],
+          context_token: contextToken,
+          run_id: runId,
+        },
+        base_info: { channel_version: CHANNEL_VERSION },
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("[agent] stream error:", msg);
+      if (fullText) this.addChatHistory(userId, "assistant", fullText);
+      const errorText = `[${displayName}]\nAI 无法回应：${msg}`;
+      await sendMessage(creds, {
+        msg: {
+          from_user_id: creds.ilink_bot_id,
+          to_user_id: userId,
+          client_id: newClientId(),
+          message_type: MessageType.Bot,
+          message_state: MessageState.Finish,
+          item_list: [{ type: ItemType.Text, text_item: { text: errorText } }],
+          context_token: contextToken,
+          run_id: runId,
+        },
+        base_info: { channel_version: CHANNEL_VERSION },
+      });
+    }
+  }
+
+  // ---- Image generation ----
+
+  private async getImageLLMConfig(): Promise<LLMConfig> {
+    const imageProviderId = await this.env.BACKENDS.get("llm:image_provider_id");
+    if (!imageProviderId) {
+      throw new Error("未配置生图供应商，请前往管理台 → 生图 设置");
+    }
+
+    const imageModel = await this.env.BACKENDS.get("llm:image_model");
+    const providers = await this.loadProviders();
+    const provider = providers.find((p) => p.id === imageProviderId);
+    if (!provider) {
+      throw new Error(`生图供应商 "${imageProviderId}" 不存在，请检查管理台配置`);
+    }
+
+    console.log(`[draw] provider=${provider.id} baseUrl=${provider.baseUrl || "默认"} model=${imageModel || "(未指定)"}`);
+    return {
+      apiKey: this.resolveApiKey(provider.apiKey),
+      baseUrl: provider.baseUrl,
+      model: imageModel || "dall-e-3",
+    };
+  }
+
+  private async handleDrawCommand(
+    creds: Credentials,
+    userId: string,
+    contextToken: string,
+    prompt: string,
+  ): Promise<void> {
+    // Send "generating" status message
+    await sendMessage(creds, {
+      msg: {
+        from_user_id: creds.ilink_bot_id,
+        to_user_id: userId,
+        client_id: newClientId(),
+        message_type: MessageType.Bot,
+        message_state: MessageState.Finish,
+        item_list: [{ type: ItemType.Text, text_item: { text: `🎨 正在生成：${prompt}` } }],
+        context_token: contextToken,
+      },
+      base_info: { channel_version: CHANNEL_VERSION },
+    });
+
+    try {
+      const imageConfig = await this.getImageLLMConfig();
+      console.log(`[draw] generating image via ${imageConfig.model}...`);
+      const result = await generateImage(prompt, imageConfig);
+      console.log(`[draw] image generated, url=${!!result.url} b64=${!!result.b64Json}`);
+
+      // Download image from URL
+      let imageBytes: Uint8Array | null = null;
+      if (result.url) {
+        const res = await fetch(result.url, { signal: AbortSignal.timeout(30_000) });
+        if (res.ok) {
+          imageBytes = new Uint8Array(await res.arrayBuffer());
+        }
+      } else if (result.b64Json) {
+        // Decode base64
+        const binary = atob(result.b64Json);
+        imageBytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          imageBytes[i] = binary.charCodeAt(i);
+        }
+      }
+
+      if (!imageBytes || imageBytes.length === 0) {
+        throw new Error("无法下载生成的图片");
+      }
+
+      // Generate AES key
+      const aesKey = crypto.getRandomValues(new Uint8Array(16));
+      const filekey = Array.from(crypto.getRandomValues(new Uint8Array(16)))
+        .map((b) => b.toString(16).padStart(2, "0")).join("");
+      const rawsize = imageBytes.length;
+      const filesize = aesEcbPaddedSize(rawsize);
+
+      // Compute MD5 (pure JS)
+      const rawfilemd5 = md5(imageBytes);
+
+      // Get CDN upload URL
+      console.log(`[draw] uploading to CDN, rawsize=${rawsize} filesize=${filesize}`);
+      const uploadResp = await getUploadUrl(creds, {
+        filekey,
+        media_type: 1, // UploadMediaType.IMAGE
+        to_user_id: userId,
+        rawsize,
+        rawfilemd5,
+        filesize,
+        no_need_thumb: true,
+        aeskey: Array.from(aesKey).map((b) => b.toString(16).padStart(2, "0")).join(""),
+      });
+
+      const uploadFullUrl = uploadResp.upload_full_url?.trim();
+      const uploadParam = uploadResp.upload_param;
+      if (!uploadFullUrl && !uploadParam) {
+        throw new Error("CDN 上传地址获取失败");
+      }
+
+      // Construct CDN upload URL, prefer upload_full_url from server
+      const cdnBaseUrl = "https://novac2c.cdn.weixin.qq.com";
+      let cdnUploadUrl: string;
+      if (uploadFullUrl) {
+        cdnUploadUrl = uploadFullUrl;
+      } else if (uploadParam) {
+        cdnUploadUrl = `${cdnBaseUrl}/upload?encrypted_query_param=${encodeURIComponent(uploadParam)}&filekey=${encodeURIComponent(filekey)}`;
+      } else {
+        throw new Error("CDN upload URL missing (need upload_full_url or upload_param)");
+      }
+
+      // Encrypt and upload
+      const ciphertext = aesEcbEncrypt(imageBytes, aesKey);
+      const { downloadParam } = await uploadToCDN(ciphertext, cdnUploadUrl);
+      console.log(`[draw] CDN upload done`);
+
+      // Send image to user — aes_key in WeChat message is hex-string base64 (matches official SDK)
+      const aesKeyHex = Buffer.from(aesKey).toString("hex");
+      const aesKeyBase64 = Buffer.from(aesKeyHex).toString("base64");
+      await sendMessage(creds, {
+        msg: {
+          from_user_id: creds.ilink_bot_id,
+          to_user_id: userId,
+          client_id: newClientId(),
+          message_type: MessageType.Bot,
+          message_state: MessageState.Finish,
+          item_list: [{
+            type: ItemType.Image,
+            image_item: {
+              media: {
+                encrypt_query_param: downloadParam,
+                aes_key: aesKeyBase64,
+                encrypt_type: 1,
+              },
+              mid_size: filesize,
+            },
+          }],
+          context_token: contextToken,
+        },
+        base_info: { channel_version: CHANNEL_VERSION },
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("[draw] failed:", msg);
+      await this.sendTextToUser(creds, userId, contextToken, `图片生成失败：${msg}`);
+    }
+  }
+
+  // POST /test-cmd — dev-only: simulate WeChat message, return Agent reply as JSON
   private async buildStatusText(): Promise<string> {
     const creds = this.getCredentials();
     const bridgeCount = this.bridgeSessions.length;

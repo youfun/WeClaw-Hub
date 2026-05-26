@@ -1,6 +1,7 @@
 name = "weclaw-hub"
 main = "src/index.ts"
 compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
 
 # Durable Objects — 每個 Bot 賬號一個 DO 實例
 [durable_objects]

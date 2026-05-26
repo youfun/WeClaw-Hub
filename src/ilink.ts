@@ -11,17 +11,21 @@ import type {
   SendTypingResponse,
   QRCodeResponse,
   QRStatusResponse,
+  GetUploadUrlRequest,
+  GetUploadUrlResponse,
 } from "./types.ts";
+import { UploadMediaType } from "./types.ts";
 
 const DEFAULT_BASE_URL = "https://ilinkai.weixin.qq.com";
-export const CHANNEL_VERSION = "2.1.1";
+export const CHANNEL_VERSION = "2.4.2";
+const BOT_AGENT = "WeClaw-Hub";
 const LONG_POLL_TIMEOUT_MS = 25_000; // CF Workers fetch ~30s limit
 const SEND_TIMEOUT_MS = 15_000;
 const CONFIG_TIMEOUT_MS = 10_000;
 
 // iLink-App-ClientVersion: uint32 encoded as major<<16 | minor<<8 | patch
-// 2.1.1 => (2<<16)|(1<<8)|1 = 131329
-const ILINK_APP_CLIENT_VERSION = "131329";
+// 2.4.2 => (2<<16)|(4<<8)|2 = 132098
+const ILINK_APP_CLIENT_VERSION = "132098";
 const ILINK_APP_ID = "bot";
 
 // QR login endpoints (always on default base URL)
@@ -29,7 +33,7 @@ const QR_CODE_URL = `${DEFAULT_BASE_URL}/ilink/bot/get_bot_qrcode?bot_type=3`;
 const QR_STATUS_BASE_URL = `${DEFAULT_BASE_URL}/ilink/bot/get_qrcode_status?qrcode=`;
 
 function buildBaseInfo(): BaseInfo {
-  return { channel_version: CHANNEL_VERSION };
+  return { channel_version: CHANNEL_VERSION, bot_agent: BOT_AGENT };
 }
 
 function buildGetHeaders(): Record<string, string> {
@@ -51,6 +55,8 @@ function buildHeaders(botToken?: string): Record<string, string> {
     "Content-Type": "application/json",
     AuthorizationType: "ilink_bot_token",
     "X-WECHAT-UIN": randomWechatUin(),
+    "iLink-App-Id": ILINK_APP_ID,
+    "iLink-App-ClientVersion": ILINK_APP_CLIENT_VERSION,
   };
   if (botToken) {
     headers["Authorization"] = `Bearer ${botToken}`;
@@ -132,13 +138,145 @@ export async function sendMessage(
   creds: Credentials,
   msg: SendMessageRequest,
 ): Promise<SendMessageResponse> {
-  return apiPost<SendMessageResponse>(
+  const payload: SendMessageRequest = {
+    ...msg,
+    msg: {
+      ...msg.msg,
+      // iLink 2.4.x expects bot-origin messages to use an empty from_user_id.
+      from_user_id: msg.msg.message_type === 2 ? "" : msg.msg.from_user_id,
+    },
+  };
+  const resp = await apiPost<SendMessageResponse>(
     creds.baseurl || DEFAULT_BASE_URL,
     "ilink/bot/sendmessage",
-    msg,
+    payload,
     creds.bot_token,
     SEND_TIMEOUT_MS,
   );
+  if ((resp.ret ?? 0) !== 0) {
+    throw new Error(`sendmessage failed: ret=${resp.ret} errmsg=${resp.errmsg ?? ""}`);
+  }
+  return resp;
+}
+
+export async function notifyStart(creds: Credentials): Promise<void> {
+  await apiPost(
+    creds.baseurl || DEFAULT_BASE_URL,
+    "ilink/bot/msg/notifystart",
+    { base_info: buildBaseInfo() },
+    creds.bot_token,
+    CONFIG_TIMEOUT_MS,
+  );
+}
+
+export async function notifyStop(creds: Credentials): Promise<void> {
+  await apiPost(
+    creds.baseurl || DEFAULT_BASE_URL,
+    "ilink/bot/msg/notifystop",
+    { base_info: buildBaseInfo() },
+    creds.bot_token,
+    CONFIG_TIMEOUT_MS,
+  );
+}
+
+// ---- CDN Upload ----
+
+const CDN_UPLOAD_TIMEOUT_MS = 30_000;
+
+export async function getUploadUrl(
+  creds: Credentials,
+  params: GetUploadUrlRequest,
+): Promise<GetUploadUrlResponse> {
+  return apiPost<GetUploadUrlResponse>(
+    creds.baseurl || DEFAULT_BASE_URL,
+    "ilink/bot/getuploadurl",
+    {
+      filekey: params.filekey,
+      media_type: params.media_type,
+      to_user_id: params.to_user_id,
+      rawsize: params.rawsize,
+      rawfilemd5: params.rawfilemd5,
+      filesize: params.filesize,
+      thumb_rawsize: params.thumb_rawsize,
+      thumb_rawfilemd5: params.thumb_rawfilemd5,
+      thumb_filesize: params.thumb_filesize,
+      no_need_thumb: params.no_need_thumb,
+      aeskey: params.aeskey,
+      base_info: buildBaseInfo(),
+    },
+    creds.bot_token,
+    CDN_UPLOAD_TIMEOUT_MS,
+  );
+}
+
+/**
+ * Upload AES-128-ECB encrypted buffer to Weixin CDN.
+ * Returns the download encrypt_query_param from the CDN response header.
+ */
+export async function uploadToCDN(
+  ciphertext: Uint8Array,
+  uploadFullUrl: string,
+): Promise<{ downloadParam: string }> {
+  const url = uploadFullUrl.trim();
+  if (!url) throw new Error("CDN upload URL is empty");
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/octet-stream" },
+    body: ciphertext,
+    signal: AbortSignal.timeout(CDN_UPLOAD_TIMEOUT_MS),
+  });
+
+  if (!res.ok) {
+    const errHeader = res.headers.get("x-error-message");
+    const errText = await res.text().catch(() => "");
+    console.error(`[cdn] upload failed HTTP ${res.status} x-error=${errHeader} body=${errText.slice(0, 200)}`);
+    throw new Error(`CDN upload failed HTTP ${res.status}: ${errHeader || errText}`);
+  }
+
+  const downloadParam = res.headers.get("x-encrypted-param");
+  if (!downloadParam) {
+    throw new Error("CDN upload response missing x-encrypted-param header");
+  }
+
+  return { downloadParam };
+}
+
+/**
+ * Send a media message (image/video/file) with optional text caption.
+ * Sends text caption first (if any), then the media item as separate messages.
+ */
+export async function sendMediaMessage(
+  creds: Credentials,
+  params: {
+    to_user_id: string;
+    context_token: string;
+    text?: string;
+    mediaItem: { type: number; image_item?: Record<string, unknown>; video_item?: Record<string, unknown>; file_item?: Record<string, unknown> };
+  },
+): Promise<void> {
+  const { to_user_id, context_token, text, mediaItem } = params;
+
+  const items: Array<{ type: number; [key: string]: unknown }> = [];
+  if (text) {
+    items.push({ type: 1, text_item: { text } });
+  }
+  items.push(mediaItem);
+
+  for (const item of items) {
+    await sendMessage(creds, {
+      msg: {
+        from_user_id: creds.ilink_bot_id,
+        to_user_id,
+        client_id: newClientId(),
+        message_type: 2, // Bot
+        message_state: 2, // Finish
+        item_list: [item as import("./types.ts").MessageItem],
+        context_token: context_token,
+      },
+      base_info: buildBaseInfo(),
+    });
+  }
 }
 
 export async function getConfig(
@@ -196,11 +334,16 @@ export function newClientId(): string {
   return crypto.randomUUID();
 }
 
-/** Extract text body from a message's item_list. */
-export function extractText(items: { type: number; text_item?: { text: string } }[]): string {
+/** Extract text body from a message's item_list.
+ * Handles text (type=1) and voice (type=3) — voice messages include a
+ * server-side ASR transcript in voice_item.text; no external API needed. */
+export function extractText(items: { type: number; text_item?: { text: string }; voice_item?: { text?: string } }[]): string {
   for (const item of items) {
     if (item.type === 1 && item.text_item?.text) {
       return item.text_item.text;
+    }
+    if (item.type === 3 && item.voice_item?.text) {
+      return item.voice_item.text;
     }
   }
   return "";

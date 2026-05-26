@@ -131,6 +131,68 @@ describe("parseGenericMessage", () => {
     expect(msg.length).toBeLessThan(600);
     expect(msg).toContain("...");
   });
+
+  // ── Template mode ──
+  it("uses template with ${path} variable substitution from JSON body", () => {
+    const payload = { type: "checkout.session.completed", data: { object: { amount_total: 999 } } };
+    const msg = parseGenericMessage("Stripe", payload, "💰 新订单 ¥${data.object.amount_total / 100}");
+    expect(msg).toBe("[Stripe] 💰 新订单 ¥9.99");
+  });
+
+  it("replaces multiple ${path} variables in template", () => {
+    const payload = { event: "push", repo: "acme/app", commits: 3 };
+    const msg = parseGenericMessage("Git", payload, "${event}: ${repo} (${commits} commits)");
+    expect(msg).toBe("[Git] push: acme/app (3 commits)");
+  });
+
+  it("returns empty string for unresolvable ${path}", () => {
+    const payload = { name: "test" };
+    const msg = parseGenericMessage("App", payload, "Value: ${missing}");
+    // Trailing space from "Value: " is trimmed by shorten()
+    expect(msg).toBe("[App] Value:");
+  });
+
+  it("handles null/undefined intermediate values gracefully", () => {
+    const payload = { data: null };
+    const msg = parseGenericMessage("App", payload, "Result: ${data.field}");
+    expect(msg).toBe("[App] Result:");
+  });
+
+  it("exposes the whole payload with $ as root", () => {
+    const payload = { a: 1, b: { c: 2 } };
+    const msg = parseGenericMessage("App", payload, "a=${a} c=${b.c}");
+    expect(msg).toBe("[App] a=1 c=2");
+  });
+
+  it("accepts JavaScript arithmetic in ${} expressions", () => {
+    const payload = { price: 99.99, qty: 3 };
+    const msg = parseGenericMessage("Order", payload, "总价: ¥${price * qty}");
+    expect(msg).toBe("[Order] 总价: ¥299.97");
+  });
+
+  it("preserves literal text outside ${", () => {
+    const payload = { status: "ok" };
+    const msg = parseGenericMessage("App", payload, "Status is ${status}, all good.");
+    expect(msg).toBe("[App] Status is ok, all good.");
+  });
+
+  it("falls back to text/message/content when template is empty string", () => {
+    const payload = { text: "hello" };
+    const msg = parseGenericMessage("App", payload, "");
+    expect(msg).toBe("[App] hello");
+  });
+
+  it("falls back to text/message/content when template is undefined", () => {
+    const payload = { message: "hi there" };
+    const msg = parseGenericMessage("App", payload, undefined);
+    expect(msg).toBe("[App] hi there");
+  });
+
+  it("handles template with no variables (plain text)", () => {
+    const payload = { anything: "ignored" };
+    const msg = parseGenericMessage("Alert", payload, "服务器宕机！");
+    expect(msg).toBe("[Alert] 服务器宕机！");
+  });
 });
 
 // ── TAPD parser ────────────────────────────────────────────────────────────

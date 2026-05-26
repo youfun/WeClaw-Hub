@@ -1,9 +1,15 @@
 // HTTP Agent — supports Anthropic Messages API and OpenAI-compatible APIs
 // Reference: ref/weclaw/agent/http_agent.go
 
+export interface ImageData {
+  data: Uint8Array;
+  mediaType: string;
+}
+
 export interface Message {
   role: "user" | "assistant";
   content: string;
+  image?: ImageData;
 }
 
 export interface LLMConfig {
@@ -50,7 +56,12 @@ export function trimHistory(messages: Message[]): Message[] {
   if (messages.length <= HISTORY_LIMIT) return messages;
   const trimmed = messages.slice(messages.length - HISTORY_LIMIT);
   const start = trimmed.findIndex((m) => m.role === "user");
-  return start > 0 ? trimmed.slice(start) : trimmed;
+  const normalized = start > 0 ? trimmed.slice(start) : trimmed;
+  return normalized.map((message, index) => ({
+    role: message.role,
+    content: message.content,
+    image: index === normalized.length - 1 ? message.image : undefined,
+  }));
 }
 
 /** Call LLM and return reply text. Never throws — returns error string on failure. */
@@ -79,11 +90,63 @@ export async function callClaude(
   }
 }
 
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    const chunk = bytes.subarray(offset, offset + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+  return btoa(binary);
+}
+
+function buildAnthropicContent(message: Message): string | Array<Record<string, unknown>> {
+  if (!message.image) return message.content;
+
+  const content: Array<Record<string, unknown>> = [{
+    type: "image",
+    source: {
+      type: "base64",
+      media_type: message.image.mediaType,
+      data: bytesToBase64(message.image.data),
+    },
+  }];
+
+  if (message.content) {
+    content.push({ type: "text", text: message.content });
+  }
+
+  return content;
+}
+
+function buildOpenAIContent(message: Message): string | Array<Record<string, unknown>> {
+  if (!message.image) return message.content;
+
+  const base64 = bytesToBase64(message.image.data);
+  const content: Array<Record<string, unknown>> = [{
+    type: "image_url",
+    image_url: {
+      url: `data:${message.image.mediaType};base64,${base64}`,
+    },
+  }];
+
+  if (message.content) {
+    content.push({ type: "text", text: message.content });
+  }
+
+  return content;
+}
+
 async function callAnthropic(
   messages: Message[],
   systemPrompt: string,
   config: LLMConfig,
 ): Promise<string> {
+  const apiMessages = trimHistory(messages).map((message) => ({
+    role: message.role,
+    content: buildAnthropicContent(message),
+  }));
+
   const res = await fetch(ANTHROPIC_API_URL, {
     method: "POST",
     headers: {
@@ -95,7 +158,7 @@ async function callAnthropic(
       model: config.model || DEFAULT_ANTHROPIC_MODEL,
       max_tokens: config.maxOutputTokens ?? 4096,
       system: systemPrompt || DEFAULT_SYSTEM,
-      messages: trimHistory(messages),
+      messages: apiMessages,
     }),
     signal: AbortSignal.timeout(55_000),
   });
@@ -122,7 +185,10 @@ async function callOpenAICompat(
   const url = config.baseUrl!.replace(/\/$/, "") + "/chat/completions";
   const oaiMessages = [
     { role: "system", content: systemPrompt || DEFAULT_SYSTEM },
-    ...trimHistory(messages),
+    ...trimHistory(messages).map((message) => ({
+      role: message.role,
+      content: buildOpenAIContent(message),
+    })),
   ];
 
   const res = await fetch(url, {
@@ -151,4 +217,239 @@ async function callOpenAICompat(
   const content = data.choices?.[0]?.message?.content;
   if (!content) throw new Error("API returned empty or missing content");
   return content;
+}
+
+// ---- Streaming ----
+
+/**
+ * Call LLM with streaming, yielding text chunks as they arrive.
+ * Yields individual token strings. The caller is responsible for
+ * batching and sending partial messages with message_state=GENERATING.
+ */
+export async function* callClaudeStream(
+  messages: Message[],
+  systemPrompt: string,
+  config: LLMConfig,
+): AsyncGenerator<string> {
+  if (!config.apiKey) {
+    yield "AI 无法回应：未配置 API Key";
+    return;
+  }
+
+  const gen = config.baseUrl
+    ? streamOpenAICompat(messages, systemPrompt, config)
+    : streamAnthropic(messages, systemPrompt, config);
+
+  let totalLen = 0;
+  for await (const chunk of gen) {
+    totalLen += chunk.length;
+    if (totalLen > WECHAT_CHAR_LIMIT) break;
+    yield chunk;
+  }
+}
+
+async function* streamAnthropic(
+  messages: Message[],
+  systemPrompt: string,
+  config: LLMConfig,
+): AsyncGenerator<string> {
+  const apiMessages = trimHistory(messages).map((message) => ({
+    role: message.role,
+    content: buildAnthropicContent(message),
+  }));
+
+  const res = await fetch(ANTHROPIC_API_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": config.apiKey,
+      "anthropic-version": "2023-06-01",
+      "anthropic-beta": "messages-2023-12-15",
+    },
+    body: JSON.stringify({
+      model: config.model || DEFAULT_ANTHROPIC_MODEL,
+      max_tokens: config.maxOutputTokens ?? 4096,
+      system: systemPrompt || DEFAULT_SYSTEM,
+      messages: apiMessages,
+      stream: true,
+    }),
+    signal: AbortSignal.timeout(55_000),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error(`[agent] Anthropic stream error ${res.status}:`, errText.slice(0, 200));
+    throw new Error(`Anthropic ${res.status}: ${errText.slice(0, 120)}`);
+  }
+
+  if (!res.body) throw new Error("Anthropic stream has no body");
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  let charCount = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+
+    const lines = buf.split("\n");
+    buf = lines.pop() ?? "";
+
+    for (const line of lines) {
+      if (!line.startsWith("data: ")) continue;
+      const payload = line.slice(6);
+      if (payload === "[DONE]") continue;
+      try {
+        const event = JSON.parse(payload) as {
+          type: string;
+          delta?: { type: string; text?: string };
+          content_block?: { type: string; text?: string };
+        };
+        if (event.type === "content_block_delta" && event.delta?.type === "text_delta" && event.delta.text) {
+          charCount += event.delta.text.length;
+          if (charCount > WECHAT_CHAR_LIMIT) return;
+          yield event.delta.text;
+        }
+      } catch {
+        // skip unparseable lines
+      }
+    }
+  }
+}
+
+async function* streamOpenAICompat(
+  messages: Message[],
+  systemPrompt: string,
+  config: LLMConfig,
+): AsyncGenerator<string> {
+  const url = config.baseUrl!.replace(/\/$/, "") + "/chat/completions";
+  const oaiMessages = [
+    { role: "system", content: systemPrompt || DEFAULT_SYSTEM },
+    ...trimHistory(messages).map((message) => ({
+      role: message.role,
+      content: buildOpenAIContent(message),
+    })),
+  ];
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${config.apiKey}`,
+    },
+    body: JSON.stringify({
+      model: config.model || DEFAULT_OPENAI_MODEL,
+      max_tokens: config.maxOutputTokens ?? 4096,
+      messages: oaiMessages,
+      stream: true,
+    }),
+    signal: AbortSignal.timeout(55_000),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error(`[agent] OpenAI-compat stream error ${res.status}:`, errText.slice(0, 200));
+    throw new Error(`API ${res.status}: ${errText.slice(0, 120)}`);
+  }
+
+  if (!res.body) throw new Error("OpenAI stream has no body");
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  let charCount = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+
+    const lines = buf.split("\n");
+    buf = lines.pop() ?? "";
+
+    for (const line of lines) {
+      if (!line.startsWith("data: ")) continue;
+      const payload = line.slice(6);
+      if (payload === "[DONE]") continue;
+      try {
+        const event = JSON.parse(payload) as {
+          choices?: Array<{ delta?: { content?: string } }>;
+        };
+        const text = event.choices?.[0]?.delta?.content;
+        if (text) {
+          charCount += text.length;
+          if (charCount > WECHAT_CHAR_LIMIT) return;
+          yield text;
+        }
+      } catch {
+        // skip unparseable lines
+      }
+    }
+  }
+}
+
+// ---- Image Generation ----
+
+export interface ImageGenResult {
+  /** URL of the generated image */
+  url?: string;
+  /** Base64-encoded image data */
+  b64Json?: string;
+  /** Revised prompt (DALL-E 3 only) */
+  revisedPrompt?: string;
+}
+
+/**
+ * Generate an image via OpenAI-compatible Images API.
+ */
+export async function generateImage(
+  prompt: string,
+  config: LLMConfig,
+): Promise<ImageGenResult> {
+  if (!config.apiKey) {
+    throw new Error("未配置 API Key");
+  }
+
+  const baseUrl = config.baseUrl || "https://api.openai.com";
+  // Strip trailing /v1 to avoid double-prefix (e.g. baseUrl already ending in /v1)
+  const url = baseUrl.replace(/\/v1\/?$/, "") + "/v1/images/generations";
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${config.apiKey}`,
+    },
+    body: JSON.stringify({
+      model: config.model || "dall-e-3",
+      prompt,
+      n: 1,
+      size: "1024x1024",
+      response_format: "url",
+    }),
+    signal: AbortSignal.timeout(60_000),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error(`[agent] generateImage error ${res.status}:`, errText.slice(0, 200));
+    throw new Error(`图片生成失败 (${res.status}): ${errText.slice(0, 120)}`);
+  }
+
+  const data = (await res.json()) as {
+    data?: Array<{ url?: string; b64_json?: string; revised_prompt?: string }>;
+  };
+
+  const result = data.data?.[0];
+  if (!result || (!result.url && !result.b64_json)) {
+    throw new Error("图片生成接口返回空结果");
+  }
+
+  return {
+    url: result.url,
+    b64Json: result.b64_json,
+    revisedPrompt: result.revised_prompt,
+  };
 }
