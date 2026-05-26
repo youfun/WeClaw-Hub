@@ -152,6 +152,9 @@ export interface ScheduledTask {
   };
   tool_id: string;
   tool_params: Record<string, unknown>;
+  failure_count?: number;
+  last_failed_at?: number;
+  last_error?: string;
   last_run_at?: number;
   next_run_at?: number;
   created_at: number;
@@ -234,6 +237,9 @@ export interface WebhookConfig {
   bot_ids: string[];
   header_field?: string;
   enabled: boolean;
+  /** Template for formatting messages from JSON payload. ${path} resolves
+   * fields via dot-notation. ${price * qty} evaluates arithmetic. */
+  template?: string;
 }
 
 // ---- Gateway types ----

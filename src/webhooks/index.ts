@@ -15,6 +15,7 @@ export function parseWebhookMessage(
   source: string,
   payload: unknown,
   headers: Headers,
+  template?: string,
 ): string | null {
   const normalized = source.toLowerCase();
 
@@ -28,5 +29,5 @@ export function parseWebhookMessage(
     return parseTapdMessage(payload);
   }
 
-  return parseGenericMessage(normalizeSourceName(source), payload);
+  return parseGenericMessage(normalizeSourceName(source), payload, template);
 }

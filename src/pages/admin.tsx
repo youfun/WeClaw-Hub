@@ -1,7 +1,7 @@
 /** @jsxImportSource hono/jsx */
 
 import type { Backend, CustomModel, LlmProvider } from "../types.ts";
-import { EmptyState, Section, renderPage } from "./layout.tsx";
+import { Chip, EmptyState, Section, StatusBadge, renderPage } from "./layout.tsx";
 
 export type BotSummary = {
   bot_id: string;
@@ -23,26 +23,36 @@ export function adminPage(props: AdminPageProps): Response {
     providers: props.providers,
     models: props.models,
     webhooks: props.webhooks,
+    botIds: props.bots.map((b) => b.bot_id),
   });
 
   return renderPage({
     title: "管理台",
     subtitle: "统一管理机器人、供应商、模型与 Webhook 配置。",
+    activeNav: "admin",
     children: (
       <>
-        <Section title="机器人" description="每个机器人独立运行，当前状态在此集中展示。">
+        <Section
+          title="机器人"
+          description="每个机器人独立运行，当前状态在此集中展示。"
+          dot="wechat"
+        >
           <div class="grid">
             {props.bots.length ? props.bots.map((bot) => (
-              <div class="row">
-                <div>
+              <div class={`row stripe-${bot.polling ? "ok" : "warn"}`} style="position:relative;overflow:hidden">
+                <div style="padding-left:4px">
                   <strong>{bot.bot_id}</strong>
                   <div class="meta">
-                    <span>{bot.remark || "未备注"}</span>
-                    <span>{displayAgentMode(bot.agent_mode)} 模式</span>
+                    <span class="meta-chip">{bot.remark || "未备注"}</span>
+                    <span class="meta-chip">{bot.agent_mode || "family"} 模式</span>
                   </div>
                 </div>
                 <div class="inline">
-                  <span class={bot.polling ? "badge ok" : "badge warn"}>{bot.polling ? "轮询中" : "已停止"}</span>
+                  <StatusBadge
+                    status={bot.polling ? "ok" : "warn"}
+                    text={bot.polling ? "轮询中" : "已停止"}
+                    pulse={bot.polling}
+                  />
                   <a class="button primary" href={`/admin/bot/${encodeURIComponent(bot.bot_id)}`}>进入配置</a>
                 </div>
               </div>
@@ -50,15 +60,24 @@ export function adminPage(props: AdminPageProps): Response {
           </div>
         </Section>
 
-        <Section title="供应商" description="按供应商统一管理密钥与接口地址，拉取可用模型并一键导入。">
+        <Section
+          title="供应商"
+          description="按供应商统一管理密钥与接口地址，拉取可用模型并一键导入。"
+          dot="cf"
+        >
           <div class="grid">
             {props.providers.length ? props.providers.map((provider) => (
               <div class="row">
                 <div>
-                  <strong>{provider.name}</strong>
+                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                    <strong style="margin-bottom:0">{provider.name}</strong>
+                    <Chip
+                      color={provider.type === "anthropic" ? "purple" : "blue"}
+                      text={displayProviderType(provider.type)}
+                    />
+                  </div>
                   <div class="meta">
-                    <span>{displayProviderType(provider.type)}</span>
-                    <span class="code">{provider.baseUrl || "官方 API"}</span>
+                    <span class="code-inline">{provider.baseUrl || "官方 API"}</span>
                   </div>
                 </div>
                 <div class="inline">
@@ -69,25 +88,34 @@ export function adminPage(props: AdminPageProps): Response {
             )) : <EmptyState text="暂无供应商。" />}
           </div>
 
-          <div style="height: 14px"></div>
+          <div class="inline" style="margin-top:12px">
+            <button id="toggle-provider-form" class="button" type="button">+ 添加供应商</button>
+          </div>
 
-          <form id="provider-form" class="card stack">
-            <strong>添加供应商</strong>
-            <div class="form-grid">
-              <div class="field"><label>ID</label><input name="id" placeholder="openrouter" required /></div>
-              <div class="field"><label>名称</label><input name="name" placeholder="OpenRouter" required /></div>
-              <div class="field">
-                <label>类型</label>
-                <select name="type">
-                  <option value="anthropic">Anthropic 格式</option>
-                  <option value="openai-compat">OpenAI 兼容</option>
-                </select>
-              </div>
-              <div class="field"><label>接口地址</label><input name="baseUrl" placeholder="https://openrouter.ai/api/v1" /></div>
-              <div class="field full"><label>密钥</label><input name="apiKey" placeholder="${OPENROUTER_API_KEY}" required /></div>
+          <div id="provider-modal" class="modal-overlay" hidden>
+            <div class="modal-card">
+              <form id="provider-form" class="stack">
+                <strong>添加供应商</strong>
+                <div class="form-grid">
+                  <div class="field"><label>ID</label><input name="id" placeholder="openrouter" required /></div>
+                  <div class="field"><label>名称</label><input name="name" placeholder="OpenRouter" required /></div>
+                  <div class="field">
+                    <label>类型</label>
+                    <select name="type">
+                      <option value="anthropic">anthropic</option>
+                      <option value="openai-compat">openai-compat</option>
+                    </select>
+                  </div>
+                  <div class="field"><label>接口地址</label><input name="baseUrl" placeholder="https://openrouter.ai/api/v1" /></div>
+                  <div class="field full"><label>密钥</label><input name="apiKey" placeholder="${OPENROUTER_API_KEY}" required /></div>
+                </div>
+                <div class="inline">
+                  <button class="primary" type="submit">保存供应商</button>
+                  <button class="button" type="button" id="cancel-provider-form">取消</button>
+                </div>
+              </form>
             </div>
-            <div class="inline"><button class="primary" type="submit">保存供应商</button></div>
-          </form>
+          </div>
 
           <div style="height: 14px"></div>
 
@@ -100,16 +128,27 @@ export function adminPage(props: AdminPageProps): Response {
           </div>
         </Section>
 
-        <Section title="模型" description="支持「日常」「复杂推理」角色标记，供智能模式自动选模。">
+        <Section
+          title="模型"
+          description="支持 daily / complex 角色标记，供 family 模式自动选模。"
+          dot="brand"
+        >
           <div class="grid">
             {props.models.length ? props.models.map((model) => (
               <div class="row">
                 <div>
-                  <strong>{model.displayName}</strong>
+                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                    <strong style="margin-bottom:0">{model.displayName}</strong>
+                    {model.role ? (
+                      <Chip
+                        color={model.role === "complex" ? "brand" : model.role === "extraction" ? "purple" : "terminal"}
+                        text={displayModelRole(model.role)}
+                      />
+                    ) : null}
+                  </div>
                   <div class="meta">
-                    <span class="code">{model.model}</span>
-                    <span>{model.providerId}</span>
-                    <span>{model.role || "未设角色"}</span>
+                    <span class="code-inline">{model.model}</span>
+                    <span class="meta-chip">{model.providerId}</span>
                   </div>
                 </div>
                 <div class="inline">
@@ -124,9 +163,11 @@ export function adminPage(props: AdminPageProps): Response {
             )) : <EmptyState text="暂无模型配置。" />}
           </div>
 
-          <div style="height: 14px"></div>
+          <div class="inline" style="margin-top:12px">
+            <button id="toggle-model-form" class="button" type="button">+ 添加模型</button>
+          </div>
 
-          <form id="model-form" class="card stack">
+          <form id="model-form" class="card stack" hidden>
             <strong>添加模型</strong>
             <div class="form-grid">
               <div class="field"><label>模型 ID</label><input name="model" placeholder="claude-sonnet-4-5-20250514" required /></div>
@@ -147,7 +188,10 @@ export function adminPage(props: AdminPageProps): Response {
                 </select>
               </div>
             </div>
-            <div class="inline"><button class="primary" type="submit">保存模型</button></div>
+            <div class="inline">
+              <button class="primary" type="submit">保存模型</button>
+              <button class="button" type="button" id="cancel-model-form">取消</button>
+            </div>
           </form>
 
           <form id="model-edit-form" class="card stack" hidden>
@@ -179,44 +223,92 @@ export function adminPage(props: AdminPageProps): Response {
           </form>
         </Section>
 
-        <Section title="Webhook" description="将外部服务的事件推送到微信。在此集中管理 Webhook 配置。">
+        <Section
+          title="Webhook"
+          description="将外部服务的事件推送到微信。在此集中管理 Webhook 配置。"
+          dot="sky"
+        >
           <div class="grid">
-            {props.webhooks.length ? props.webhooks.map((webhook) => (
-              <div class="row">
-                <div>
-                  <strong>{String((webhook as Record<string, unknown>).name || (webhook as Record<string, unknown>).path || "Webhook")}</strong>
-                  <div class="meta">
-                    <span>{displayWebhookSource(String((webhook as Record<string, unknown>).source || "generic"))}</span>
-                    <span class="code">/{String((webhook as Record<string, unknown>).path || "")}</span>
+            {props.webhooks.length ? props.webhooks.map((webhook) => {
+              const w = webhook as Record<string, unknown>;
+              const source = String(w.source || "generic");
+              return (
+                <div class="row">
+                  <div style="display:flex;align-items:flex-start;gap:8px">
+                    <span style="font-size:18px;margin-top:-1px;color:var(--ink-muted);opacity:0.5" aria-hidden="true">→</span>
+                    <div>
+                      <strong style="margin-bottom:4px">{String(w.name || w.path || "Webhook")}</strong>
+                      <div class="meta">
+                        <Chip
+                          color={source === "github" ? "brand" : source === "tapd" ? "amber" : "blue"}
+                          text={displayWebhookSource(source)}
+                        />
+                        <span class="code-inline">/{String(w.path || "")}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="inline">
+                    <button class="button" type="button" data-delete-webhook={String(w.path || "")}>删除</button>
+                  </div>
+                </div>
+              );
+            }) : <EmptyState text="暂无 Webhook。" />}
+          </div>
+
+          <div class="inline" style="margin-top:12px">
+            <button id="toggle-webhook-form" class="button" type="button">+ 添加 Webhook</button>
+          </div>
+
+          <div id="webhook-modal" class="modal-overlay" hidden>
+            <div class="modal-card">
+              <form id="webhook-form" class="stack">
+                <strong>添加 Webhook</strong>
+                <div class="form-grid">
+                  <div class="field"><label>路径</label><input name="path" placeholder="daily-news" /></div>
+                  <div class="field"><label>名称</label><input name="name" placeholder="每日新闻" /></div>
+                  <div class="field">
+                    <label>消息来源</label>
+                    <select name="source">
+                      <option value="generic">通用</option>
+                      <option value="github">GitHub</option>
+                      <option value="tapd">TAPD</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>验证方式</label>
+                    <select name="verify">
+                      <option value="bearer">Bearer 令牌</option>
+                      <option value="hmac-sha256">HMAC-SHA256 签名</option>
+                      <option value="none">无验证</option>
+                    </select>
+                  </div>
+                  <div class="field full">
+                    <label>目标机器人</label>
+                    <div id="webhook-bot-ids" class="stack" style="gap:6px">
+                      {props.bots.length ? props.bots.map((bot) => (
+                        <label class="row" style="padding:8px 12px">
+                          <span>
+                            <strong style="margin:0">{bot.bot_id}</strong>
+                            <span class="meta" style="font-size:12px">{bot.remark || ""}</span>
+                          </span>
+                          <input type="checkbox" name="bot_id" value={bot.bot_id} />
+                        </label>
+                      )) : <p class="muted">暂无可选机器人，请先登录。</p>}
+                    </div>
+                  </div>
+                  <div class="field full">
+                    <label>消息模板（可选）</label>
+                    <input name="template" placeholder="💰 新订单 ${data.object.amount_total}" />
+                    <span class="muted" style="font-size:12px;margin-top:4px">用 <code>$&#123;字段路径&#125;</code> 提取 JSON 字段，支持算术如 <code>$&#123;price * qty&#125;</code></span>
                   </div>
                 </div>
                 <div class="inline">
-                  <button class="button" type="button" data-delete-webhook={String((webhook as Record<string, unknown>).path || "")}>删除</button>
+                  <button class="primary" type="submit">保存 Webhook</button>
+                  <button class="button" type="button" id="cancel-webhook-form">取消</button>
                 </div>
-              </div>
-            )) : <EmptyState text="暂无 Webhook。" />}
-          </div>
-
-          <div style="height: 14px"></div>
-
-          <form id="webhook-form" class="card stack">
-            <strong>添加 Webhook</strong>
-            <div class="form-grid">
-              <div class="field"><label>路径</label><input name="path" placeholder="daily-news" /></div>
-              <div class="field"><label>名称</label><input name="name" placeholder="每日新闻" /></div>
-              <div class="field"><label>消息来源</label><input name="source" value="generic" /></div>
-              <div class="field">
-                <label>验证方式</label>
-                <select name="verify">
-                  <option value="bearer">Bearer 令牌</option>
-                  <option value="hmac-sha256">HMAC-SHA256 签名</option>
-                  <option value="none">无验证</option>
-                </select>
-              </div>
-              <div class="field full"><label>目标机器人（逗号分隔）</label><input name="bot_ids" placeholder="bot-a,bot-b" required /></div>
+              </form>
             </div>
-            <div class="inline"><button class="primary" type="submit">保存 Webhook</button></div>
-          </form>
+          </div>
         </Section>
 
         <script dangerouslySetInnerHTML={{ __html: buildAdminScript(payload) }} />
@@ -256,6 +348,35 @@ function formToObject(form) {
   return Object.fromEntries(new FormData(form).entries());
 }
 
+function toggleForm(btnId, formId, cancelBtnId) {
+  const btn = document.getElementById(btnId);
+  const form = document.getElementById(formId);
+  const cancelBtn = document.getElementById(cancelBtnId);
+  if (!btn || !form) return;
+  const addLabel = btn.textContent;
+  const closeLabel = "− 收起";
+
+  function showForm() {
+    form.hidden = false;
+    btn.textContent = closeLabel;
+    form.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+  function hideForm() {
+    form.hidden = true;
+    btn.textContent = addLabel;
+  }
+
+  btn.addEventListener("click", () => {
+    form.hidden ? showForm() : hideForm();
+  });
+  if (cancelBtn) {
+    cancelBtn.addEventListener("click", hideForm);
+  }
+}
+toggleForm("toggle-provider-form", "provider-form", "cancel-provider-form");
+toggleForm("toggle-model-form", "model-form", "cancel-model-form");
+toggleForm("toggle-webhook-form", "webhook-form", "cancel-webhook-form");
+
 document.getElementById("provider-form")?.addEventListener("submit", async (event) => {
   event.preventDefault();
   const body = formToObject(event.currentTarget);
@@ -273,8 +394,10 @@ document.getElementById("model-form")?.addEventListener("submit", async (event) 
 
 document.getElementById("webhook-form")?.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const body = formToObject(event.currentTarget);
-  body.bot_ids = String(body.bot_ids || "").split(",").map((item) => item.trim()).filter(Boolean);
+  const form = event.currentTarget;
+  const body = formToObject(form);
+  body.bot_ids = Array.from(form.querySelectorAll('[name="bot_id"]:checked')).map((cb) => cb.value);
+  delete body.bot_id;
   await api("POST", "/api/webhooks", body);
   location.reload();
 });
@@ -342,7 +465,7 @@ document.querySelectorAll("[data-load-models]").forEach((button) => {
     title.textContent = "从 " + (provider?.name || activeProviderId) + " 导入模型";
     list.innerHTML = (res.models || []).map((model) => {
       const checked = imported.has(model.id);
-      return '<label class="row"><span><strong>' + model.name + '</strong><span class="meta"><span class="code">' + model.id + '</span></span></span><input type="checkbox" data-import-model="' + model.id + '" data-import-name="' + model.name + '" ' + (checked ? 'disabled' : '') + '></label>';
+      return '<label class="row"><span><strong>' + model.name + '</strong><span class="meta"><span class="code-inline">' + model.id + '</span></span></span><input type="checkbox" data-import-model="' + model.id + '" data-import-name="' + model.name + '" ' + (checked ? 'disabled' : '') + '></label>';
     }).join("") || '<p class="muted">未找到可导入的模型</p>';
     wrap.hidden = false;
   });
@@ -361,18 +484,11 @@ document.getElementById("import-selected-models")?.addEventListener("click", asy
 `;
 }
 
-function displayAgentMode(mode: string | undefined): string {
-  if (mode === "family") return "智能";
-   if (mode === "manual") return "手动";
-  return mode || "智能";
-}
-
 function displayProviderType(type: string): string {
-  return type === "anthropic" ? "Anthropic 格式" : type === "openai-compat" ? "OpenAI 兼容" : type;
+  return type === "anthropic" ? "Anthropic 原生" : type === "openai-compat" ? "OpenAI 兼容" : type;
 }
 
-function displayModelRole(role: string | null | undefined): string {
-  if (!role) return "未设置";
+function displayModelRole(role: string): string {
   if (role === "daily") return "日常";
   if (role === "complex") return "复杂推理";
   if (role === "extraction") return "记忆提取";
@@ -382,6 +498,7 @@ function displayModelRole(role: string | null | undefined): string {
 function displayWebhookSource(source: string): string {
   if (source === "generic") return "通用";
   if (source === "github") return "GitHub";
+  if (source === "tapd") return "TAPD";
   return source;
 }
 

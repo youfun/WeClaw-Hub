@@ -13,7 +13,7 @@ import { botRoutes } from "./routes/bots.ts";
 import { providerRoutes } from "./routes/providers.ts";
 import { modelRoutes } from "./routes/models.ts";
 import { toolRoutes } from "./routes/tools.ts";
-import { adminPage } from "./pages/admin.tsx";
+import { adminPage, type BotSummary } from "./pages/admin.tsx";
 import { botDetailPage } from "./pages/bot-detail.tsx";
 import { guidePage } from "./pages/guide.tsx";
 import { BUILTIN_TOOLS } from "./tools.ts";
@@ -149,6 +149,7 @@ app.post("/api/webhooks", async (c) => {
     bot_ids: botIds,
     header_field: body.header_field,
     enabled: body.enabled ?? true,
+    template: body.template?.trim() || undefined,
   };
   await c.env.BACKENDS.put(`webhook:${path}`, JSON.stringify(config));
   return c.json({ ok: true, config });
@@ -219,7 +220,7 @@ app.get("/admin/bot/:id", async (c) => {
 });
 
 // Helper functions
-async function loadBots(env: Env): Promise<Array<Record<string, unknown>>> {
+async function loadBots(env: Env): Promise<BotSummary[]> {
   const raw = await env.BACKENDS.get("bots");
   const botIds: string[] = raw ? (JSON.parse(raw) as string[]) : [];
 
