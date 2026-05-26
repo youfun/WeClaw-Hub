@@ -2180,6 +2180,7 @@ export class BotSession implements DurableObject {
     }
   }
 
+  // POST /test-cmd — dev-only: simulate WeChat message, return Agent reply as JSON
   private async buildStatusText(): Promise<string> {
     const creds = this.getCredentials();
     const bridgeCount = this.bridgeSessions.length;
