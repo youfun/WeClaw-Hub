@@ -33,6 +33,8 @@ import {
   uploadToCDN,
   getConfig,
   sendTyping,
+  notifyStart,
+  notifyStop,
   newClientId,
   extractText,
   CHANNEL_VERSION,
@@ -1060,6 +1062,12 @@ export class BotSession implements DurableObject {
     }
 
     // Clear credentials and stop polling
+    try {
+      await notifyStop(creds);
+    } catch (err) {
+      console.error("[unbind] notifyStop failed:", err);
+    }
+
     this.kvDelete("credentials");
     this.kvDelete("get_updates_buf");
     await this.state.storage.deleteAlarm();
@@ -1075,6 +1083,11 @@ export class BotSession implements DurableObject {
     this.setCredentials(creds);
     this.setUpdatesBuf("");
     this.consecutiveFailures = 0;
+    try {
+      await notifyStart(creds);
+    } catch (err) {
+      console.error("[login] notifyStart failed:", err);
+    }
     await this.state.storage.setAlarm(Date.now() + 100);
     await this.updateBotsIndex(creds.ilink_bot_id);
     return json({ ok: true, message: "credentials saved, polling started" });
@@ -1336,12 +1349,25 @@ export class BotSession implements DurableObject {
     const creds = this.getCredentials();
     if (!creds) return json({ error: "not logged in" }, 401);
     this.consecutiveFailures = 0;
+    try {
+      await notifyStart(creds);
+    } catch (err) {
+      console.error("[start] notifyStart failed:", err);
+    }
     await this.state.storage.setAlarm(Date.now() + 100);
     return json({ ok: true, message: "polling started" });
   }
 
   // POST /stop
   private async handleStop(): Promise<Response> {
+    const creds = this.getCredentials();
+    if (creds) {
+      try {
+        await notifyStop(creds);
+      } catch (err) {
+        console.error("[stop] notifyStop failed:", err);
+      }
+    }
     await this.state.storage.deleteAlarm();
     return json({ ok: true, message: "polling stopped" });
   }

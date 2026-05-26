@@ -27,6 +27,7 @@ export const ItemType = {
 
 export interface BaseInfo {
   channel_version?: string;
+  bot_agent?: string;
 }
 
 export interface TextItem {
@@ -236,6 +237,7 @@ export interface QRStatusResponse {
   bot_token?: string;
   ilink_bot_id?: string;
   baseurl?: string;
+  base_url?: string;
   ilink_user_id?: string;
   redirect_host?: string; // IDC redirect: switch polling to this host
 }

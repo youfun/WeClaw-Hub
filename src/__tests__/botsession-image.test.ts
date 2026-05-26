@@ -108,6 +108,44 @@ describe("BotSession image flow", () => {
     fetchMock?.mockRestore();
   });
 
+  it("sends bot-origin messages with an empty from_user_id", async () => {
+    fetchMock = mockFetchForBotSession();
+    const { state, env } = createBotSession();
+    const { BotSession } = await import("../BotSession.ts");
+    const session = new BotSession(state, env) as any;
+
+    await session.sendTextToUser(creds, "user-1", "ctx-1", "hello");
+
+    const sendCall = fetchMock.mock.calls.find((call: unknown[]) => {
+      const url = typeof call[0] === "string" ? call[0] : call[0] instanceof Request ? call[0].url : "";
+      return url.includes("/ilink/bot/sendmessage");
+    });
+    expect(sendCall).toBeDefined();
+    const body = JSON.parse(sendCall![1]!.body as string) as { msg: { from_user_id: string } };
+    expect(body.msg.from_user_id).toBe("");
+  });
+
+  it("notifies iLink before starting polling on login", async () => {
+    fetchMock = mockFetchForBotSession();
+    const { state, env } = createBotSession();
+    const { BotSession } = await import("../BotSession.ts");
+    const session = new BotSession(state, env) as any;
+    session.updateBotsIndex = vi.fn().mockResolvedValue(undefined);
+
+    const response = await session.handleLogin(new Request("http://do/login", {
+      method: "POST",
+      body: JSON.stringify(creds),
+    }));
+
+    expect(response.status).toBe(200);
+    const notifyCall = fetchMock.mock.calls.find((call: unknown[]) => {
+      const url = typeof call[0] === "string" ? call[0] : call[0] instanceof Request ? call[0].url : "";
+      return url.includes("/ilink/bot/msg/notifystart");
+    });
+    expect(notifyCall).toBeDefined();
+    expect(state.storage.setAlarm).toHaveBeenCalled();
+  });
+
   it("does not drop image-only messages in handleMessage", async () => {
     fetchMock = mockFetchForBotSession();
     const { state, env } = createBotSession();

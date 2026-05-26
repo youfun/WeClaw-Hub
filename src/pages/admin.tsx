@@ -467,8 +467,7 @@ document.getElementById("image-provider-select")?.addEventListener("change", fun
 document.querySelectorAll("[data-unbind-bot]").forEach((button) => {
   button.addEventListener("click", async () => {
     if (!confirm("确定要解除绑定吗？")) return;
-    const botId = button.dataset.unbindBot;
-    await api("POST", "/bot/" + encodeURIComponent(botId) + "/unbind");
+    await api("POST", "/bot/" + button.dataset.unbindBot + "/unbind");
     location.reload();
   });
 });

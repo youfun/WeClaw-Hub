@@ -6,6 +6,25 @@ import type { Env } from "../env.ts";
 
 export const botRoutes = new Hono<{ Bindings: Env }>();
 
+// POST /api/bots/start-all - Resume polling for every bound bot after a local dev restart
+botRoutes.post("/api/bots/start-all", async (c) => {
+  const raw = await c.env.BACKENDS.get("bots");
+  const botIds: string[] = raw ? (JSON.parse(raw) as string[]) : [];
+
+  const results = await Promise.all(botIds.map(async (botId) => {
+    try {
+      const doId = c.env.BOT_SESSION.idFromName(botId);
+      const stub = c.env.BOT_SESSION.get(doId);
+      const resp = await stub.fetch(new Request("http://do/start", { method: "POST" }));
+      return { bot_id: botId, ok: resp.ok, status: resp.status, body: await resp.json() };
+    } catch (err) {
+      return { bot_id: botId, ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  }));
+
+  return c.json({ ok: true, results });
+});
+
 // GET /api/bots - List all bots with their status
 botRoutes.get("/api/bots", async (c) => {
   const raw = await c.env.BACKENDS.get("bots");

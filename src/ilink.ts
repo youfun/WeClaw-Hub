@@ -17,14 +17,15 @@ import type {
 import { UploadMediaType } from "./types.ts";
 
 const DEFAULT_BASE_URL = "https://ilinkai.weixin.qq.com";
-export const CHANNEL_VERSION = "2.1.1";
+export const CHANNEL_VERSION = "2.4.2";
+const BOT_AGENT = "WeClaw-Hub";
 const LONG_POLL_TIMEOUT_MS = 25_000; // CF Workers fetch ~30s limit
 const SEND_TIMEOUT_MS = 15_000;
 const CONFIG_TIMEOUT_MS = 10_000;
 
 // iLink-App-ClientVersion: uint32 encoded as major<<16 | minor<<8 | patch
-// 2.1.1 => (2<<16)|(1<<8)|1 = 131329
-const ILINK_APP_CLIENT_VERSION = "131329";
+// 2.4.2 => (2<<16)|(4<<8)|2 = 132098
+const ILINK_APP_CLIENT_VERSION = "132098";
 const ILINK_APP_ID = "bot";
 
 // QR login endpoints (always on default base URL)
@@ -32,7 +33,7 @@ const QR_CODE_URL = `${DEFAULT_BASE_URL}/ilink/bot/get_bot_qrcode?bot_type=3`;
 const QR_STATUS_BASE_URL = `${DEFAULT_BASE_URL}/ilink/bot/get_qrcode_status?qrcode=`;
 
 function buildBaseInfo(): BaseInfo {
-  return { channel_version: CHANNEL_VERSION };
+  return { channel_version: CHANNEL_VERSION, bot_agent: BOT_AGENT };
 }
 
 function buildGetHeaders(): Record<string, string> {
@@ -54,6 +55,8 @@ function buildHeaders(botToken?: string): Record<string, string> {
     "Content-Type": "application/json",
     AuthorizationType: "ilink_bot_token",
     "X-WECHAT-UIN": randomWechatUin(),
+    "iLink-App-Id": ILINK_APP_ID,
+    "iLink-App-ClientVersion": ILINK_APP_CLIENT_VERSION,
   };
   if (botToken) {
     headers["Authorization"] = `Bearer ${botToken}`;
@@ -135,12 +138,44 @@ export async function sendMessage(
   creds: Credentials,
   msg: SendMessageRequest,
 ): Promise<SendMessageResponse> {
-  return apiPost<SendMessageResponse>(
+  const payload: SendMessageRequest = {
+    ...msg,
+    msg: {
+      ...msg.msg,
+      // iLink 2.4.x expects bot-origin messages to use an empty from_user_id.
+      from_user_id: msg.msg.message_type === 2 ? "" : msg.msg.from_user_id,
+    },
+  };
+  const resp = await apiPost<SendMessageResponse>(
     creds.baseurl || DEFAULT_BASE_URL,
     "ilink/bot/sendmessage",
-    msg,
+    payload,
     creds.bot_token,
     SEND_TIMEOUT_MS,
+  );
+  if ((resp.ret ?? 0) !== 0) {
+    throw new Error(`sendmessage failed: ret=${resp.ret} errmsg=${resp.errmsg ?? ""}`);
+  }
+  return resp;
+}
+
+export async function notifyStart(creds: Credentials): Promise<void> {
+  await apiPost(
+    creds.baseurl || DEFAULT_BASE_URL,
+    "ilink/bot/msg/notifystart",
+    { base_info: buildBaseInfo() },
+    creds.bot_token,
+    CONFIG_TIMEOUT_MS,
+  );
+}
+
+export async function notifyStop(creds: Credentials): Promise<void> {
+  await apiPost(
+    creds.baseurl || DEFAULT_BASE_URL,
+    "ilink/bot/msg/notifystop",
+    { base_info: buildBaseInfo() },
+    creds.bot_token,
+    CONFIG_TIMEOUT_MS,
   );
 }
 
