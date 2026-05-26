@@ -248,6 +248,14 @@ app.get("/admin/bot/:id", async (c) => {
   });
 });
 
+app.post("/bot/:id/unbind", async (c) => {
+  const botId = decodeURIComponent(c.req.param("id"));
+  const stub = c.env.BOT_SESSION.get(c.env.BOT_SESSION.idFromName(botId));
+  const resp = await stub.fetch(new Request("http://do/unbind", { method: "POST" }));
+  const body = await resp.json() as { ok?: boolean; error?: string };
+  return c.json(body, resp.status as 200 | 400);
+});
+
 // Helper functions
 async function loadBots(env: Env): Promise<BotSummary[]> {
   const raw = await env.BACKENDS.get("bots");

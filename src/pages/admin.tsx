@@ -58,6 +58,7 @@ export function adminPage(props: AdminPageProps): Response {
                     pulse={bot.polling}
                   />
                   <a class="button primary" href={`/admin/bot/${encodeURIComponent(bot.bot_id)}`}>进入配置</a>
+                  <button class="button" type="button" data-unbind-bot={bot.bot_id}>解除</button>
                 </div>
               </div>
             )) : <EmptyState text="暂无已登录机器人。" />}
@@ -461,6 +462,15 @@ if (adminData.imageProviderId) {
 
 document.getElementById("image-provider-select")?.addEventListener("change", function () {
   loadImageModels(this.value, "");
+});
+
+document.querySelectorAll("[data-unbind-bot]").forEach((button) => {
+  button.addEventListener("click", async () => {
+    if (!confirm("确定要解除绑定吗？")) return;
+    const botId = button.dataset.unbindBot;
+    await api("POST", "/bot/" + encodeURIComponent(botId) + "/unbind");
+    location.reload();
+  });
 });
 
 document.querySelectorAll("[data-delete-provider]").forEach((button) => {

@@ -1007,6 +1007,8 @@ export class BotSession implements DurableObject {
     switch (url.pathname) {
       case "/login":
         return this.handleLogin(request);
+      case "/unbind":
+        return this.handleUnbind();
       case "/rate-limit":
         return this.handleRateLimit(request);
       case "/send":
@@ -1040,6 +1042,30 @@ export class BotSession implements DurableObject {
     }
   }
 
+  // POST /unbind — clear credentials and stop polling
+  private async handleUnbind(): Promise<Response> {
+    const creds = this.getCredentials();
+    if (!creds) return json({ error: "not logged in" }, 400);
+
+    const botId = creds.ilink_bot_id;
+
+    // Remove from bots index
+    try {
+      const raw = await this.env.BACKENDS.get("bots");
+      const bots: string[] = raw ? (JSON.parse(raw) as string[]) : [];
+      const updated = bots.filter((id) => id !== botId);
+      await this.env.BACKENDS.put("bots", JSON.stringify(updated));
+    } catch (err) {
+      console.error("[unbind] updateBotsIndex failed:", err);
+    }
+
+    // Clear credentials and stop polling
+    this.kvDelete("credentials");
+    this.kvDelete("get_updates_buf");
+    await this.state.storage.deleteAlarm();
+    console.log(`[unbind] bot ${botId} unbound`);
+    return json({ ok: true, message: "unbound" });
+  }
   // POST /login — save credentials and start polling
   private async handleLogin(request: Request): Promise<Response> {
     const creds = (await request.json()) as Credentials;
