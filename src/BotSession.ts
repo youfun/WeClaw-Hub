@@ -2128,7 +2128,6 @@ export class BotSession implements DurableObject {
 
       const uploadFullUrl = uploadResp.upload_full_url?.trim();
       const uploadParam = uploadResp.upload_param;
-      console.log(`[draw] getUploadUrl fullResp=${JSON.stringify(uploadResp).slice(0, 300)}`);
       if (!uploadFullUrl && !uploadParam) {
         throw new Error("CDN 上传地址获取失败");
       }
@@ -2146,12 +2145,12 @@ export class BotSession implements DurableObject {
 
       // Encrypt and upload
       const ciphertext = aesEcbEncrypt(imageBytes, aesKey);
-      console.log(`[draw] CDN url=${cdnUploadUrl.slice(0, 120)}`);
       const { downloadParam } = await uploadToCDN(ciphertext, cdnUploadUrl);
       console.log(`[draw] CDN upload done`);
 
-      // Send image to user
-      const aesKeyBase64 = btoa(String.fromCharCode(...aesKey));
+      // Send image to user — aes_key in WeChat message is hex-string base64 (matches official SDK)
+      const aesKeyHex = Buffer.from(aesKey).toString("hex");
+      const aesKeyBase64 = Buffer.from(aesKeyHex).toString("base64");
       await sendMessage(creds, {
         msg: {
           from_user_id: creds.ilink_bot_id,
