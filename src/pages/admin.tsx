@@ -555,7 +555,7 @@ document.getElementById("import-selected-models")?.addEventListener("click", asy
 }
 
 function displayProviderType(type: string): string {
-  return type === "anthropic" ? "Anthropic" : type === "openai-compat" ? "OpenAI" : type;
+  return type === "anthropic" ? "Anthropic 类型" : type === "openai-compat" ? "OpenAI 类型" : type;
 }
 
 function displayModelRole(role: string): string {
