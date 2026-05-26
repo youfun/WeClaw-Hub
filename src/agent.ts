@@ -413,7 +413,8 @@ export async function generateImage(
   }
 
   const baseUrl = config.baseUrl || "https://api.openai.com";
-  const url = baseUrl.replace(/\/$/, "") + "/v1/images/generations";
+  // Strip trailing /v1 to avoid double-prefix (e.g. baseUrl already ending in /v1)
+  const url = baseUrl.replace(/\/v1\/?$/, "") + "/v1/images/generations";
 
   const res = await fetch(url, {
     method: "POST",

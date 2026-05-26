@@ -228,8 +228,10 @@ export async function uploadToCDN(
   });
 
   if (!res.ok) {
+    const errHeader = res.headers.get("x-error-message");
     const errText = await res.text().catch(() => "");
-    throw new Error(`CDN upload failed HTTP ${res.status}: ${errText}`);
+    console.error(`[cdn] upload failed HTTP ${res.status} x-error=${errHeader} body=${errText.slice(0, 200)}`);
+    throw new Error(`CDN upload failed HTTP ${res.status}: ${errHeader || errText}`);
   }
 
   const downloadParam = res.headers.get("x-encrypted-param");

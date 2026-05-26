@@ -910,6 +910,23 @@ export class BotSession implements DurableObject {
     await this.state.storage.setAlarm(nextAlarmAt);
   }
 
+  private async buildModelListText(): Promise<string> {
+    const models = await this.loadModels();
+    if (!models.length) return "未配置任何模型。";
+
+    const settings = this.getBotSettings();
+    const activeName = settings.active_model || await this.env.BACKENDS.get("llm:active");
+    const activeModel = (activeName && models.find((m) => m.displayName === activeName)) || models[0] || null;
+    return [
+      "可选模型：",
+      ...models.map((model, index) =>
+        `${index + 1}. ${model.displayName}${model.displayName === activeModel?.displayName ? " ← 当前" : ""}`
+      ),
+      "",
+      "发送 /model <编号> 或 /model <名称> 切换。",
+    ].join("\n");
+  }
+
   private async buildModeStatusText(): Promise<string> {
     const mode = this.getAgentMode();
     if (mode === "manual") {
@@ -1773,34 +1790,37 @@ export class BotSession implements DurableObject {
         break;
 
       case "model": {
+        const modelArgs = action.args.toLowerCase();
+        if (modelArgs === "manual") {
+          this.setAgentMode("manual");
+          replyText = `已切换到 ${await this.buildModeStatusText()}\n\n${await this.buildModelListText()}`;
+          break;
+        }
+        if (modelArgs === "family") {
+          this.setAgentMode("family");
+          replyText = `已切换到 ${await this.buildModeStatusText()}`;
+          break;
+        }
+
         if (this.getAgentMode() === "family") {
-          replyText = "当前为 family 自动选模模式。发送 /mode manual 后可使用 /model 手动切换。";
+          replyText = "当前为 family 自动选模模式。发送 /mode manual 或 /model manual 后可使用 /model 手动切换。";
           break;
         }
 
         const models = await this.loadModels();
-        const activeName = await this.env.BACKENDS.get("llm:active");
+        const settings = this.getBotSettings();
+        const activeName = settings.active_model || await this.env.BACKENDS.get("llm:active");
         const activeModel = (activeName && models.find((m) => m.displayName === activeName)) || models[0] || null;
 
         if (!action.args) {
-          // Show current model
-          if (!activeModel) {
-            replyText = "未配置模型，请在管理页面添加。";
-          } else {
-            replyText = `当前模型：${activeModel.displayName}`;
-          }
+          replyText = activeModel
+            ? `当前模型：${activeModel.displayName}\n\n${await this.buildModelListText()}`
+            : "未配置模型，请在管理页面添加。";
           break;
         }
 
-        if (action.args === "list") {
-          if (!models.length) {
-            replyText = "未配置任何模型。";
-          } else {
-            const lines = models.map((m, i) =>
-              `${i + 1}. ${m.displayName}${m.displayName === activeModel?.displayName ? " ← 当前" : ""}`
-            );
-            replyText = lines.join("\n");
-          }
+        if (modelArgs === "list") {
+          replyText = await this.buildModelListText();
           break;
         }
 
@@ -1832,7 +1852,9 @@ export class BotSession implements DurableObject {
         }
 
         this.setAgentMode(nextMode);
-        replyText = `已切换到 ${await this.buildModeStatusText()}`;
+        replyText = nextMode === "manual"
+          ? `已切换到 ${await this.buildModeStatusText()}\n\n${await this.buildModelListText()}`
+          : `已切换到 ${await this.buildModeStatusText()}`;
         break;
       }
 
@@ -2105,15 +2127,27 @@ export class BotSession implements DurableObject {
       });
 
       const uploadFullUrl = uploadResp.upload_full_url?.trim();
-      if (!uploadFullUrl && !uploadResp.upload_param) {
+      const uploadParam = uploadResp.upload_param;
+      console.log(`[draw] getUploadUrl fullResp=${JSON.stringify(uploadResp).slice(0, 300)}`);
+      if (!uploadFullUrl && !uploadParam) {
         throw new Error("CDN 上传地址获取失败");
+      }
+
+      // Construct CDN upload URL, prefer upload_full_url from server
+      const cdnBaseUrl = "https://novac2c.cdn.weixin.qq.com";
+      let cdnUploadUrl: string;
+      if (uploadFullUrl) {
+        cdnUploadUrl = uploadFullUrl;
+      } else if (uploadParam) {
+        cdnUploadUrl = `${cdnBaseUrl}/upload?encrypted_query_param=${encodeURIComponent(uploadParam)}&filekey=${encodeURIComponent(filekey)}`;
+      } else {
+        throw new Error("CDN upload URL missing (need upload_full_url or upload_param)");
       }
 
       // Encrypt and upload
       const ciphertext = aesEcbEncrypt(imageBytes, aesKey);
-      const cdnUrl = uploadFullUrl ||
-        `https://novac2c.cdn.weixin.qq.com/c2c/upload?encrypted_query_param=${encodeURIComponent(uploadResp.upload_param!)}&filekey=${encodeURIComponent(filekey)}`;
-      const { downloadParam } = await uploadToCDN(ciphertext, cdnUrl);
+      console.log(`[draw] CDN url=${cdnUploadUrl.slice(0, 120)}`);
+      const { downloadParam } = await uploadToCDN(ciphertext, cdnUploadUrl);
       console.log(`[draw] CDN upload done`);
 
       // Send image to user

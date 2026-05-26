@@ -110,8 +110,10 @@ bun run deploy
 ```bash
 cp .dev.vars.example .dev.vars
 # 按需编辑 .dev.vars；至少需要 AUTH_TOKEN
-bun run dev    # http://localhost:8787
+bun run dev:local    # 启动 wrangler dev，并自动 POST /api/bots/start-all 恢复已绑定 Bot 轮询
 ```
+
+如果只想启动 Worker、不自动恢复轮询，也可以运行 `bun run dev`。
 
 本地开发时 KV 和 DO 数据保存在本地（`--local` 模式）。`.dev.vars` 只用于本地且已被 `.gitignore` 忽略；线上密钥请用 `wrangler secret put`。
 

@@ -5,6 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "wrangler dev",
+    "dev:local": "./scripts/dev-local.sh",
     "deploy": "wrangler deploy",
     "tail": "wrangler tail",
     "test": "vitest run",

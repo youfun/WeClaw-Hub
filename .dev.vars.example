@@ -1,0 +1,13 @@
+# Local-only variables for `bun run dev` / `wrangler dev`.
+# Copy this file to `.dev.vars` and fill real values.
+# Do not commit `.dev.vars`.
+
+# Required locally for /auth, /admin, /api/*, /bot/* management routes.
+AUTH_TOKEN=dev-test-token
+
+# Optional fallback LLM configuration.
+# Prefer configuring providers in the admin UI when possible.
+ANTHROPIC_API_KEY=
+LLM_BASE_URL=
+LLM_API_KEY=
+LLM_MODEL=

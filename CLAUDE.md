@@ -28,7 +28,7 @@ bun run dev          # 本地開發（wrangler dev，http://localhost:8787）
 bun run deploy       # 部署到 Cloudflare
 ```
 
-本地開發時 `AUTH_TOKEN` 使用 `wrangler.toml` 裡的 `dev-test-token`，KV/DO 數據存在本地（`--local` 自動創建）。
+本地開發時 `AUTH_TOKEN` 放在 `.dev.vars`（可由 `.dev.vars.example` 複製），不要放入 `wrangler.toml`；KV/DO 數據存在本地（`--local` 自動創建）。
 [强制要求]对于新功能，请使用TDD（先红后绿）拆成可执行阶段进行开发
 
 ## 架構說明
