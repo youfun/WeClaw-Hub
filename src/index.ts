@@ -13,7 +13,7 @@ import { botRoutes } from "./routes/bots.ts";
 import { providerRoutes } from "./routes/providers.ts";
 import { modelRoutes } from "./routes/models.ts";
 import { toolRoutes } from "./routes/tools.ts";
-import { adminPage } from "./pages/admin.tsx";
+import { adminPage, type BotSummary } from "./pages/admin.tsx";
 import { botDetailPage } from "./pages/bot-detail.tsx";
 import { guidePage } from "./pages/guide.tsx";
 import { BUILTIN_TOOLS } from "./tools.ts";
@@ -149,6 +149,7 @@ app.post("/api/webhooks", async (c) => {
     bot_ids: botIds,
     header_field: body.header_field,
     enabled: body.enabled ?? true,
+    template: body.template?.trim() || undefined,
   };
   await c.env.BACKENDS.put(`webhook:${path}`, JSON.stringify(config));
   return c.json({ ok: true, config });
@@ -182,14 +183,44 @@ app.delete("/api/webhooks/:path", async (c) => {
   return c.json({ ok: true });
 });
 
+// ── Image generation config ──
+
+app.patch("/api/image-config", async (c) => {
+  const body = await c.req.json() as { image_provider_id?: string | null; image_model?: string | null };
+  if (body.image_provider_id !== undefined) {
+    const id = (body.image_provider_id ?? "").trim();
+    if (id) {
+      const providers = await loadProviders(c.env);
+      if (!providers.some((p) => p.id === id)) {
+        return c.json({ error: `provider "${id}" not found` }, 400);
+      }
+      await c.env.BACKENDS.put("llm:image_provider_id", id);
+    } else {
+      await c.env.BACKENDS.delete("llm:image_provider_id");
+    }
+  }
+  if (body.image_model !== undefined) {
+    const model = (body.image_model ?? "").trim();
+    if (model) {
+      await c.env.BACKENDS.put("llm:image_model", model);
+    } else {
+      await c.env.BACKENDS.delete("llm:image_model");
+    }
+  }
+  return c.json({ ok: true });
+});
+
 app.get("/admin", async (c) => {
-  const [bots, providers, models, webhooks] = await Promise.all([
+  const [bots, providers, models, webhooks, imageProviderId, imageModel] = await Promise.all([
     loadBots(c.env),
     loadProviders(c.env),
     loadModels(c.env),
     loadWebhooks(c.env),
+    c.env.BACKENDS.get("llm:image_provider_id"),
+    c.env.BACKENDS.get("llm:image_model"),
   ]);
-  return adminPage({ bots, providers, models, webhooks });
+  const origin = new URL(c.req.url).origin;
+  return adminPage({ bots, providers, models, webhooks, imageProviderId, imageModel, origin });
 });
 
 app.get("/admin/bot/:id", async (c) => {
@@ -218,8 +249,16 @@ app.get("/admin/bot/:id", async (c) => {
   });
 });
 
+app.post("/bot/:id/unbind", async (c) => {
+  const botId = decodeURIComponent(c.req.param("id"));
+  const stub = c.env.BOT_SESSION.get(c.env.BOT_SESSION.idFromName(botId));
+  const resp = await stub.fetch(new Request("http://do/unbind", { method: "POST" }));
+  const body = await resp.json() as { ok?: boolean; error?: string };
+  return c.json(body, resp.status as 200 | 400);
+});
+
 // Helper functions
-async function loadBots(env: Env): Promise<Array<Record<string, unknown>>> {
+async function loadBots(env: Env): Promise<BotSummary[]> {
   const raw = await env.BACKENDS.get("bots");
   const botIds: string[] = raw ? (JSON.parse(raw) as string[]) : [];
 
@@ -320,7 +359,7 @@ function sanitizeKeySegment(input: string): string | null {
 }
 
 function generateWebhookPath(): string {
-  const bytes = new Uint8Array(6);
+  const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
   return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
 }

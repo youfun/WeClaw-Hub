@@ -53,7 +53,8 @@ providerRoutes.get("/api/providers/:id/models", async (c) => {
   const provider = providers.find((item) => item.id === providerId);
   if (!provider) return c.json({ error: "not found" }, 404);
 
-  if (provider.type === "anthropic") {
+  if (provider.type === "anthropic" && !provider.baseUrl) {
+    // Native Anthropic API — return known model list
     return c.json({
       models: [
         { id: "claude-sonnet-4-5-20250514", name: "Claude Sonnet 4.5" },
@@ -63,6 +64,7 @@ providerRoutes.get("/api/providers/:id/models", async (c) => {
     });
   }
 
+  // Anthropic proxy with baseUrl or openai-compat provider — fetch from the provider's API
   if (!provider.baseUrl) return c.json({ error: "missing baseUrl" }, 400);
 
   // baseUrl = 用户填写的完整路径，如 https://zenmux.ai/api/v1
