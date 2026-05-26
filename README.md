@@ -207,6 +207,21 @@ bun run dev:local    # 启动 wrangler dev，并自动 POST /api/bots/start-all 
 - [ ] **MCP 端点**：支持接入外部工具，扩展机器人能力
 - [ ] **Webhook 增强**：支持更多内置解析器（Stripe、PagerDuty 等）
 
+## 一键部署
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/<你的用户名>/weclaw-hub)
+
+> 将 `<你的用户名>` 替换为你的 GitHub 用户名。
+
+点击按钮后 Cloudflare 自动完成：克隆仓库、创建 KV namespace、创建 Durable Object、构建并部署。
+
+部署后需手动设置密钥：
+
+```bash
+bunx wrangler secret put AUTH_TOKEN        # 管理台认证（必须）
+bunx wrangler secret put ANTHROPIC_API_KEY  # AI 密钥
+```
+
 ## License
 
 MIT
