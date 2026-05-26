@@ -24,7 +24,7 @@
 - **失败重试**：自动指数退避，不影响其他任务
 
 ### Webhook 通知
-把 SaaS 服务的事件实时推送到微信。
+把其他渠道推送的 webhook 消息转发到微信。
 
 - GitHub / TAPD / 通用 JSON — 内置解析器
 - Bearer Token 验证

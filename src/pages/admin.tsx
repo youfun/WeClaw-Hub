@@ -280,7 +280,7 @@ export function adminPage(props: AdminPageProps): Response {
 
         <Section
           title="Webhook"
-          description="将外部服务的事件推送到微信。在此集中管理 Webhook 配置。"
+          description="把其他渠道的 webhook 消息转发到微信。在此集中管理 Webhook 配置。"
           dot="sky"
         >
           <div class="grid">
