@@ -25,6 +25,7 @@ binding = "CONTACTS"
 id = "6f16673ab6824ea4963455608a195fad"
 
 [vars]
+AUTH_TOKEN = "dev-test-token"
 SYSTEM_PROMPT = "你是一個有用的AI助手。"
 
 # ---- LLM 配置 ----

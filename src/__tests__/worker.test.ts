@@ -396,7 +396,7 @@ describe("/api/providers CRUD", () => {
     expect(data.provider.hasApiKey).toBe(true);
   });
 
-  it("GET /api/providers/:id/models returns built-in Anthropic models", async () => {
+  it("GET /api/providers/:id/models returns built-in Anthropic models for native (no baseUrl)", async () => {
     await post("/api/providers", {
       id: "anthropic-direct",
       name: "Anthropic Direct",
@@ -407,6 +407,29 @@ describe("/api/providers CRUD", () => {
     expect(res.status).toBe(200);
     const data = (await res.json()) as { models: Array<{ id: string; name: string }> };
     expect(data.models.some((model) => model.id === "claude-sonnet-4-5-20250514")).toBe(true);
+  });
+
+  it("GET /api/providers/:id/models does NOT return hardcoded models for anthropic proxy (with baseUrl)", async () => {
+    await post("/api/providers", {
+      id: "step",
+      name: "Step",
+      type: "anthropic",
+      baseUrl: "https://api.stepfun.com/step_plan/v1",
+      apiKey: "${STEP_API_KEY}",
+    });
+    const res = await get("/api/providers/step/models");
+    // anthropic proxy with baseUrl should attempt to fetch models from the provider,
+    // NOT return hardcoded Claude model IDs that don't belong to this proxy
+    // (status may be 200 on success or 502 if the upstream API is unreachable in test)
+    expect([200, 502]).toContain(res.status);
+    const data = (await res.json()) as { models?: Array<{ id: string }>; error?: string };
+    // Must NOT contain hardcoded Claude models in either code path
+    if (data.models) {
+      const ids = data.models.map((model) => model.id);
+      expect(ids).not.toContain("claude-sonnet-4-5-20250514");
+      expect(ids).not.toContain("claude-3-5-sonnet-20241022");
+      expect(ids).not.toContain("claude-3-5-haiku-20241022");
+    }
   });
 
   it("PUT /api/providers/:id updates provider fields", async () => {
