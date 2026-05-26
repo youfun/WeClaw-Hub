@@ -29,7 +29,6 @@
 - GitHub / TAPD / 通用 JSON — 内置解析器
 - Bearer Token 验证
 - 消息模板支持 `${字段路径}` 提取 JSON 字段
-- 新增来源只需在 `src/webhooks/` 下新建文件
 
 ### 多账号管理
 - 支持多个微信号同时在线，每个 Bot 独立配置
