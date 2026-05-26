@@ -55,6 +55,9 @@ const SESSION_PAUSE_MS = 60 * 60 * 1_000; // 1 hour pause on session expiry
 const BACKOFF_SHORT_MS = 2_000;
 const BACKOFF_LONG_MS = 30_000;
 const BACKOFF_THRESHOLD = 3;
+const MIN_ALARM_DELAY_MS = 1_000;
+const TASK_FAILURE_BACKOFF_BASE_MS = 60_000;
+const TASK_FAILURE_BACKOFF_MAX_MS = 15 * 60_000;
 
 const TYPING_TICKET_TTL_MS = 5 * 60 * 1_000; // cache typing ticket 5 minutes
 const CHAT_HISTORY_LIMIT = 100; // 50 turns = 100 messages
@@ -148,6 +151,9 @@ CREATE TABLE IF NOT EXISTS scheduled_tasks (
   schedule TEXT NOT NULL,
   tool_id TEXT NOT NULL,
   tool_params TEXT NOT NULL DEFAULT '{}',
+  failure_count INTEGER NOT NULL DEFAULT 0,
+  last_failed_at INTEGER,
+  last_error TEXT,
   last_run_at INTEGER,
   next_run_at INTEGER,
   created_at INTEGER NOT NULL
@@ -188,6 +194,25 @@ export class BotSession implements DurableObject {
     if (this.initialized) return;
     this.state.storage.sql.exec(SCHEMA);
     this.initialized = true;
+  }
+
+  private runMigrations(): void {
+    // Add failure tracking columns to scheduled_tasks (safe to run on existing tables)
+    try {
+      this.state.storage.sql.exec(
+        "ALTER TABLE scheduled_tasks ADD COLUMN failure_count INTEGER NOT NULL DEFAULT 0"
+      );
+    } catch { /* column already exists, ignore */ }
+    try {
+      this.state.storage.sql.exec(
+        "ALTER TABLE scheduled_tasks ADD COLUMN last_failed_at INTEGER"
+      );
+    } catch { /* column already exists, ignore */ }
+    try {
+      this.state.storage.sql.exec(
+        "ALTER TABLE scheduled_tasks ADD COLUMN last_error TEXT"
+      );
+    } catch { /* column already exists, ignore */ }
   }
 
   // ---- KV helpers ----
@@ -707,7 +732,7 @@ export class BotSession implements DurableObject {
   private loadScheduledTasks(): ScheduledTask[] {
     const rows = this.state.storage.sql
       .exec(
-        "SELECT id, name, enabled, schedule, tool_id, tool_params, last_run_at, next_run_at, created_at FROM scheduled_tasks ORDER BY COALESCE(next_run_at, created_at) ASC, created_at ASC",
+        "SELECT id, name, enabled, schedule, tool_id, tool_params, failure_count, last_failed_at, last_error, last_run_at, next_run_at, created_at FROM scheduled_tasks ORDER BY COALESCE(next_run_at, created_at) ASC, created_at ASC",
       )
       .toArray();
 
@@ -718,6 +743,9 @@ export class BotSession implements DurableObject {
       schedule: JSON.parse(row.schedule as string) as ScheduledTask["schedule"],
       tool_id: row.tool_id as string,
       tool_params: JSON.parse((row.tool_params as string | null) ?? "{}") as Record<string, unknown>,
+      failure_count: row.failure_count === null || row.failure_count === undefined ? undefined : Number(row.failure_count),
+      last_failed_at: row.last_failed_at === null || row.last_failed_at === undefined ? undefined : Number(row.last_failed_at),
+      last_error: (row.last_error as string | null) ?? undefined,
       last_run_at: row.last_run_at === null || row.last_run_at === undefined ? undefined : Number(row.last_run_at),
       next_run_at: row.next_run_at === null || row.next_run_at === undefined ? undefined : Number(row.next_run_at),
       created_at: Number(row.created_at),
@@ -727,14 +755,17 @@ export class BotSession implements DurableObject {
   private saveScheduledTask(task: ScheduledTask): void {
     this.state.storage.sql.exec(
       `INSERT OR REPLACE INTO scheduled_tasks
-       (id, name, enabled, schedule, tool_id, tool_params, last_run_at, next_run_at, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, name, enabled, schedule, tool_id, tool_params, failure_count, last_failed_at, last_error, last_run_at, next_run_at, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       task.id,
       task.name,
       task.enabled ? 1 : 0,
       JSON.stringify(task.schedule),
       task.tool_id,
       JSON.stringify(task.tool_params ?? {}),
+      task.failure_count ?? 0,
+      task.last_failed_at ?? null,
+      task.last_error ?? null,
       task.last_run_at ?? null,
       task.next_run_at ?? null,
       task.created_at,
@@ -823,23 +854,52 @@ export class BotSession implements DurableObject {
         await this.executeTask(task, creds);
         const updated: ScheduledTask = {
           ...task,
+          failure_count: 0,
+          last_failed_at: undefined,
+          last_error: undefined,
           last_run_at: now,
           next_run_at: computeNextRun(task.schedule, now),
         };
         this.saveScheduledTask(updated);
       } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : String(err);
         console.error("[task] execution failed:", err);
+        const failureCount = (task.failure_count ?? 0) + 1;
+        const backoffMs = Math.min(
+          TASK_FAILURE_BACKOFF_BASE_MS * (2 ** (failureCount - 1)),
+          TASK_FAILURE_BACKOFF_MAX_MS,
+        );
+        this.saveScheduledTask({
+          ...task,
+          failure_count: failureCount,
+          last_failed_at: now,
+          last_error: errorMessage,
+          next_run_at: now + backoffMs,
+        });
       }
     }
   }
 
   private async scheduleNextAlarm(pollDelayMs: number): Promise<void> {
     const now = Date.now();
+    const pollAt = now + Math.max(pollDelayMs, MIN_ALARM_DELAY_MS);
+
     const rows = this.state.storage.sql
       .exec("SELECT MIN(next_run_at) AS next_run_at FROM scheduled_tasks WHERE enabled = 1")
       .toArray();
-    const nextTaskAt = rows.length ? (rows[0]!.next_run_at === null || rows[0]!.next_run_at === undefined ? null : Number(rows[0]!.next_run_at)) : null;
-    const nextAlarmAt = nextTaskAt !== null ? Math.min(now + pollDelayMs, nextTaskAt) : now + pollDelayMs;
+
+    const rawNextTaskAt = rows.length && rows[0]!.next_run_at != null
+      ? Number(rows[0]!.next_run_at)
+      : null;
+
+    const taskAt = rawNextTaskAt === null
+      ? null
+      : Math.max(rawNextTaskAt, now + MIN_ALARM_DELAY_MS);
+
+    const nextAlarmAt = taskAt !== null
+      ? Math.min(pollAt, taskAt)
+      : pollAt;
+
     await this.state.storage.setAlarm(nextAlarmAt);
   }
 
@@ -936,6 +996,7 @@ export class BotSession implements DurableObject {
 
   async fetch(request: Request): Promise<Response> {
     this.ensureSchema();
+    this.runMigrations();
     const url = new URL(request.url);
 
     switch (url.pathname) {
@@ -1168,6 +1229,7 @@ export class BotSession implements DurableObject {
       };
 
       this.saveScheduledTask(task);
+      await this.scheduleNextAlarm(100);
       return json({ ok: true, task });
     }
 
@@ -1197,11 +1259,13 @@ export class BotSession implements DurableObject {
         updated.next_run_at = computeNextRun(updated.schedule, Date.now());
       }
       this.saveScheduledTask(updated);
+      await this.scheduleNextAlarm(100);
       return json({ ok: true, task: updated });
     }
 
     if (request.method === "DELETE") {
       this.deleteScheduledTask(taskId);
+      await this.scheduleNextAlarm(100);
       return json({ ok: true });
     }
 
@@ -1225,10 +1289,14 @@ export class BotSession implements DurableObject {
     const now = Date.now();
     const updated: ScheduledTask = {
       ...task,
+      failure_count: 0,
+      last_failed_at: undefined,
+      last_error: undefined,
       last_run_at: now,
       next_run_at: computeNextRun(task.schedule, now),
     };
     this.saveScheduledTask(updated);
+    await this.scheduleNextAlarm(100);
     return json({ ok: true, task: updated });
   }
 
@@ -1361,6 +1429,7 @@ export class BotSession implements DurableObject {
 
   async alarm(): Promise<void> {
     this.ensureSchema();
+    this.runMigrations();
 
     // Heartbeat bridge sessions every BRIDGE_PING_INTERVAL_MS
     const now = Date.now();
@@ -1369,15 +1438,21 @@ export class BotSession implements DurableObject {
       this.lastBridgePing = now;
     }
 
-    // Check session pause (after errcode -14)
+    const creds = this.getCredentials();
+    if (!creds) return;
+
+    // MVP fix 1+2: Run tasks BEFORE getUpdates — tasks are independent of poll success.
+    // Session expired / poll errors only affect message reception, not scheduled tasks.
+    await this.runDueScheduledTasks(creds);
+
+    // MVP fix 2: Session expired only pauses polling, not scheduled tasks.
     const pausedUntil = this.kvGet("paused_until");
-    if (pausedUntil && Date.now() < Number(pausedUntil)) {
+    const isPollingPaused = pausedUntil && Date.now() < Number(pausedUntil);
+
+    if (isPollingPaused) {
       await this.scheduleNextAlarm(60_000);
       return;
     }
-
-    const creds = this.getCredentials();
-    if (!creds) return;
 
     try {
       const buf = this.getUpdatesBuf();
@@ -1407,8 +1482,6 @@ export class BotSession implements DurableObject {
 
       // Success — reset failures
       this.consecutiveFailures = 0;
-
-      await this.runDueScheduledTasks(creds);
 
       // Update sync buffer
       if (resp.get_updates_buf && resp.get_updates_buf !== buf) {
