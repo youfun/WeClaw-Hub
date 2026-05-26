@@ -3,7 +3,7 @@
 import type { Backend, CustomModel, LlmProvider } from "../types.ts";
 import { EmptyState, Section, renderPage } from "./layout.tsx";
 
-type BotSummary = {
+export type BotSummary = {
   bot_id: string;
   remark?: string;
   polling?: boolean;
@@ -27,10 +27,10 @@ export function adminPage(props: AdminPageProps): Response {
 
   return renderPage({
     title: "管理台",
-    subtitle: "统一查看机器人状态、供应商、模型与 Webhook 配置。",
+    subtitle: "统一管理机器人、供应商、模型与 Webhook 配置。",
     children: (
       <>
-        <Section title="机器人总览" description="每个机器人对应一个 Durable Object，会在这里汇总当前状态。">
+        <Section title="机器人" description="每个机器人独立运行，当前状态在此集中展示。">
           <div class="grid">
             {props.bots.length ? props.bots.map((bot) => (
               <div class="row">
@@ -38,7 +38,7 @@ export function adminPage(props: AdminPageProps): Response {
                   <strong>{bot.bot_id}</strong>
                   <div class="meta">
                     <span>{bot.remark || "未备注"}</span>
-                    <span>{bot.agent_mode || "family"} 模式</span>
+                    <span>{displayAgentMode(bot.agent_mode)} 模式</span>
                   </div>
                 </div>
                 <div class="inline">
@@ -50,23 +50,23 @@ export function adminPage(props: AdminPageProps): Response {
           </div>
         </Section>
 
-        <Section title="供应商" description="Provider 与 Model 分层管理，便于统一维护密钥与拉取模型。">
+        <Section title="供应商" description="按供应商统一管理密钥与接口地址，拉取可用模型并一键导入。">
           <div class="grid">
             {props.providers.length ? props.providers.map((provider) => (
               <div class="row">
                 <div>
                   <strong>{provider.name}</strong>
                   <div class="meta">
-                    <span>{provider.type}</span>
-                    <span class="code">{provider.baseUrl || "内置端点"}</span>
+                    <span>{displayProviderType(provider.type)}</span>
+                    <span class="code">{provider.baseUrl || "官方 API"}</span>
                   </div>
                 </div>
                 <div class="inline">
-                  <button class="button" type="button" data-load-models={provider.id}>拉取模型</button>
+                  <button class="button" type="button" data-load-models={provider.id}>获取模型列表</button>
                   <button class="button" type="button" data-delete-provider={provider.id}>删除</button>
                 </div>
               </div>
-            )) : <EmptyState text="暂无供应商配置。" />}
+            )) : <EmptyState text="暂无供应商。" />}
           </div>
 
           <div style="height: 14px"></div>
@@ -79,12 +79,12 @@ export function adminPage(props: AdminPageProps): Response {
               <div class="field">
                 <label>类型</label>
                 <select name="type">
-                  <option value="anthropic">anthropic</option>
-                  <option value="openai-compat">openai-compat</option>
+                  <option value="anthropic">Anthropic 格式</option>
+                  <option value="openai-compat">OpenAI 兼容</option>
                 </select>
               </div>
-              <div class="field"><label>Base URL</label><input name="baseUrl" placeholder="https://openrouter.ai/api/v1" /></div>
-              <div class="field full"><label>API Key</label><input name="apiKey" placeholder="${OPENROUTER_API_KEY}" required /></div>
+              <div class="field"><label>接口地址</label><input name="baseUrl" placeholder="https://openrouter.ai/api/v1" /></div>
+              <div class="field full"><label>密钥</label><input name="apiKey" placeholder="${OPENROUTER_API_KEY}" required /></div>
             </div>
             <div class="inline"><button class="primary" type="submit">保存供应商</button></div>
           </form>
@@ -92,15 +92,15 @@ export function adminPage(props: AdminPageProps): Response {
           <div style="height: 14px"></div>
 
           <div id="model-import" class="card stack" hidden>
-            <strong id="model-import-title">导入模型</strong>
+            <strong id="model-import-title">从供应商导入模型</strong>
             <div id="model-import-list" class="stack"></div>
             <div class="inline">
-              <button id="import-selected-models" class="primary" type="button">导入选中模型</button>
+              <button id="import-selected-models" class="primary" type="button">导入所选模型</button>
             </div>
           </div>
         </Section>
 
-        <Section title="模型" description="支持 daily / complex 角色标记，供 family 模式自动选模。">
+        <Section title="模型" description="支持「日常」「复杂推理」角色标记，供智能模式自动选模。">
           <div class="grid">
             {props.models.length ? props.models.map((model) => (
               <div class="row">
@@ -141,9 +141,9 @@ export function adminPage(props: AdminPageProps): Response {
                 <label>角色</label>
                 <select name="role">
                   <option value="">未设置</option>
-                  <option value="daily">daily — 日常问题</option>
-                  <option value="complex">complex — 复杂推理</option>
-                  <option value="extraction">extraction — 记忆提取（便宜模型）</option>
+                  <option value="daily">日常 — 聊天、简单问答</option>
+                  <option value="complex">复杂推理 — 编程、分析</option>
+                  <option value="extraction">记忆提取 — 推荐轻量模型</option>
                 </select>
               </div>
             </div>
@@ -166,9 +166,9 @@ export function adminPage(props: AdminPageProps): Response {
                 <label>角色</label>
                 <select name="role">
                   <option value="">未设置</option>
-                  <option value="daily">daily — 日常问题</option>
-                  <option value="complex">complex — 复杂推理</option>
-                  <option value="extraction">extraction — 记忆提取（便宜模型）</option>
+                  <option value="daily">日常 — 聊天、简单问答</option>
+                  <option value="complex">复杂推理 — 编程、分析</option>
+                  <option value="extraction">记忆提取 — 推荐轻量模型</option>
                 </select>
               </div>
             </div>
@@ -179,14 +179,14 @@ export function adminPage(props: AdminPageProps): Response {
           </form>
         </Section>
 
-        <Section title="Webhooks" description="现有 webhook 配置会在此集中展示。">
+        <Section title="Webhook" description="将外部服务的事件推送到微信。在此集中管理 Webhook 配置。">
           <div class="grid">
             {props.webhooks.length ? props.webhooks.map((webhook) => (
               <div class="row">
                 <div>
                   <strong>{String((webhook as Record<string, unknown>).name || (webhook as Record<string, unknown>).path || "Webhook")}</strong>
                   <div class="meta">
-                    <span>{String((webhook as Record<string, unknown>).source || "generic")}</span>
+                    <span>{displayWebhookSource(String((webhook as Record<string, unknown>).source || "generic"))}</span>
                     <span class="code">/{String((webhook as Record<string, unknown>).path || "")}</span>
                   </div>
                 </div>
@@ -194,28 +194,28 @@ export function adminPage(props: AdminPageProps): Response {
                   <button class="button" type="button" data-delete-webhook={String((webhook as Record<string, unknown>).path || "")}>删除</button>
                 </div>
               </div>
-            )) : <EmptyState text="暂无 webhook 配置。" />}
+            )) : <EmptyState text="暂无 Webhook。" />}
           </div>
 
           <div style="height: 14px"></div>
 
           <form id="webhook-form" class="card stack">
-            <strong>创建 Webhook</strong>
+            <strong>添加 Webhook</strong>
             <div class="form-grid">
               <div class="field"><label>路径</label><input name="path" placeholder="daily-news" /></div>
               <div class="field"><label>名称</label><input name="name" placeholder="每日新闻" /></div>
-              <div class="field"><label>来源</label><input name="source" value="generic" /></div>
+              <div class="field"><label>消息来源</label><input name="source" value="generic" /></div>
               <div class="field">
                 <label>验证方式</label>
                 <select name="verify">
-                  <option value="bearer">bearer</option>
-                  <option value="hmac-sha256">hmac-sha256</option>
-                  <option value="none">none</option>
+                  <option value="bearer">Bearer 令牌</option>
+                  <option value="hmac-sha256">HMAC-SHA256 签名</option>
+                  <option value="none">无验证</option>
                 </select>
               </div>
-              <div class="field full"><label>Bot IDs（逗号分隔）</label><input name="bot_ids" placeholder="bot-a,bot-b" required /></div>
+              <div class="field full"><label>目标机器人（逗号分隔）</label><input name="bot_ids" placeholder="bot-a,bot-b" required /></div>
             </div>
-            <div class="inline"><button class="primary" type="submit">创建 Webhook</button></div>
+            <div class="inline"><button class="primary" type="submit">保存 Webhook</button></div>
           </form>
         </Section>
 
@@ -343,7 +343,7 @@ document.querySelectorAll("[data-load-models]").forEach((button) => {
     list.innerHTML = (res.models || []).map((model) => {
       const checked = imported.has(model.id);
       return '<label class="row"><span><strong>' + model.name + '</strong><span class="meta"><span class="code">' + model.id + '</span></span></span><input type="checkbox" data-import-model="' + model.id + '" data-import-name="' + model.name + '" ' + (checked ? 'disabled' : '') + '></label>';
-    }).join("") || '<p class="muted">没有可导入模型</p>';
+    }).join("") || '<p class="muted">未找到可导入的模型</p>';
     wrap.hidden = false;
   });
 });
@@ -359,6 +359,30 @@ document.getElementById("import-selected-models")?.addEventListener("click", asy
   location.reload();
 });
 `;
+}
+
+function displayAgentMode(mode: string | undefined): string {
+  if (mode === "family") return "智能";
+   if (mode === "manual") return "手动";
+  return mode || "智能";
+}
+
+function displayProviderType(type: string): string {
+  return type === "anthropic" ? "Anthropic 格式" : type === "openai-compat" ? "OpenAI 兼容" : type;
+}
+
+function displayModelRole(role: string | null | undefined): string {
+  if (!role) return "未设置";
+  if (role === "daily") return "日常";
+  if (role === "complex") return "复杂推理";
+  if (role === "extraction") return "记忆提取";
+  return role;
+}
+
+function displayWebhookSource(source: string): string {
+  if (source === "generic") return "通用";
+  if (source === "github") return "GitHub";
+  return source;
 }
 
 function serialize(value: unknown): string {

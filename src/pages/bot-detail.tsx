@@ -29,11 +29,11 @@ export function botDetailPage(props: BotDetailProps): Response {
   });
 
   return renderPage({
-    title: `Bot 配置 · ${props.botId}`,
-    subtitle: "单 Bot 视图，集中管理 AI 模式、任务、记忆和后续 MCP 能力。",
+    title: `机器人配置 · ${props.botId}`,
+    subtitle: "集中管理 AI 模式、定时任务与用户记忆。",
     children: (
       <>
-        <Section title="基础设置" description="这里展示当前 Durable Object 上保存的机器人设置。">
+        <Section title="基础设置" description="修改机器人的运行参数。">
           <form id="settings-form" class="card stack">
             <div class="form-grid">
               <div class="field full">
@@ -57,15 +57,15 @@ export function botDetailPage(props: BotDetailProps): Response {
               <div class="field">
                 <label>保活</label>
                 <select name="keepalive">
-                  <option value="true" selected={props.settings.keepalive}>ON</option>
-                  <option value="false" selected={!props.settings.keepalive}>OFF</option>
+                  <option value="true" selected={props.settings.keepalive}>开启</option>
+                  <option value="false" selected={!props.settings.keepalive}>关闭</option>
                 </select>
               </div>
               <div class="field">
                 <label>接收 Webhook</label>
                 <select name="accept_webhook">
-                  <option value="true" selected={props.settings.accept_webhook}>ON</option>
-                  <option value="false" selected={!props.settings.accept_webhook}>OFF</option>
+                  <option value="true" selected={props.settings.accept_webhook}>开启</option>
+                  <option value="false" selected={!props.settings.accept_webhook}>关闭</option>
                 </select>
               </div>
             </div>
@@ -73,32 +73,32 @@ export function botDetailPage(props: BotDetailProps): Response {
           </form>
         </Section>
 
-        <Section title="AI 模式" description="family 模式优先按模型角色 daily / complex 自动选择。">
+        <Section title="AI 模式" description="智能模式会根据问题复杂度自动选择合适的模型。">
           <div class="row">
             <div>
-              <strong>{props.settings.agent_mode === "family" ? "家庭优化" : "指定模型"}</strong>
+              <strong>{props.settings.agent_mode === "family" ? "智能选择" : "手动模式"}</strong>
               <div class="meta">
-                <span>{props.settings.agent_mode}</span>
+                <span>{props.settings.agent_mode === "family" ? "按复杂度自动选模" : "手动指定模型"}</span>
                 <span>{props.settings.active_model || "自动选择"}</span>
               </div>
             </div>
           </div>
         </Section>
 
-        <Section title="定时任务" description="任务已切换为工具调用模型，使用 tool_id + tool_params 持久化。">
+        <Section title="定时任务" description="机器人按计划执行预设的工具调用。">
           <div class="grid">
             {props.tasks.length ? props.tasks.map((task) => (
               <div class="row">
                 <div>
                   <strong>{task.name}</strong>
                   <div class="meta">
-                    <span class="code">{task.schedule.type === "cron" ? task.schedule.cron : `${task.schedule.interval_ms} ms`}</span>
+                    <span class="code">{formatSchedule(task.schedule)}</span>
                     <span>{task.tool_id}</span>
                     <span>{task.last_run_at ? new Date(task.last_run_at).toLocaleString("zh-CN") : "未运行"}</span>
                   </div>
                 </div>
                 <div class="inline">
-                  <span class={task.enabled ? "badge ok" : "badge warn"}>{task.enabled ? "ON" : "OFF"}</span>
+                  <span class={task.enabled ? "badge ok" : "badge warn"}>{task.enabled ? "开启" : "关闭"}</span>
                   <button class="button" type="button" data-edit-task={task.id}>编辑</button>
                   <button class="button" type="button" data-run-task={task.id}>运行</button>
                   <button class="button" type="button" data-toggle-task={task.id} data-next-enabled={task.enabled ? "false" : "true"}>{task.enabled ? "禁用" : "启用"}</button>
@@ -165,8 +165,8 @@ export function botDetailPage(props: BotDetailProps): Response {
           <div class="inline"><button id="clear-memory" class="button" type="button">清空所有</button></div>
         </Section>
 
-        <Section title="MCP 端点" description="预留区，后续会接入 tools/list 自动发现。">
-          <div class="card"><span class="badge warn">暂未开放</span></div>
+        <Section title="MCP 端点" description="外部工具集成，后续开放。">
+          <div class="card"><span class="badge warn">开发中</span></div>
         </Section>
 
         <script dangerouslySetInnerHTML={{ __html: buildBotDetailScript(payload) }} />
@@ -315,6 +315,18 @@ document.getElementById("clear-memory")?.addEventListener("click", async () => {
 
 renderParamFields(document.getElementById("task-tool-id")?.value || (botDetail.tools[0] && botDetail.tools[0].id), {});
 `;
+}
+
+function formatSchedule(schedule: { type: string; cron?: string; interval_ms?: number }): string {
+  if (schedule.type === "cron" && schedule.cron) return schedule.cron;
+  if (schedule.interval_ms != null) {
+    const ms = schedule.interval_ms;
+    if (ms >= 3_600_000) return `${Math.round(ms / 3_600_000)} 小时`;
+    if (ms >= 60_000) return `${Math.round(ms / 60_000)} 分钟`;
+    if (ms >= 1_000) return `${Math.round(ms / 1_000)} 秒`;
+    return `${ms} 毫秒`;
+  }
+  return "—";
 }
 
 function serialize(value: unknown): string {

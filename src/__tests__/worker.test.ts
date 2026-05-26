@@ -837,7 +837,7 @@ describe("admin pages", () => {
     const res = await get("/admin");
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("text/html");
-    expect(await res.text()).toContain("机器人总览");
+    expect(await res.text()).toContain("<h2>机器人</h2>");
   });
 
   it("GET /admin/bot/:id returns bot detail HTML", async () => {
