@@ -5,7 +5,7 @@ import { Chip, Section, renderPage } from "./layout.tsx";
 export function guidePage(): Response {
   return renderPage({
     title: "使用说明",
-    subtitle: "在微信中与 Bot 对话，支持以下命令与交互方式。",
+    subtitle: "在微信中和机器人对话，支持以下命令。",
     activeNav: "guide",
     children: (
       <>
@@ -30,13 +30,13 @@ export function guidePage(): Response {
           <div class="grid">
             <CommandRow cmd="/model" desc="列出所有可用模型，显示当前激活的模型" />
             <CommandRow cmd="/model [名称或编号]" desc="手动切换到指定模型" example="/model 2  或  /model Sonnet" />
-            <CommandRow cmd="/mode" desc="查看当前模式（family / manual）" />
-            <CommandRow cmd="/mode family" desc="切换到 family 模式 — 根据问题复杂度自动选模（推荐）" />
-            <CommandRow cmd="/mode manual" desc="切换到 manual 模式 — 固定使用当前选中的模型" />
+            <CommandRow cmd="/mode" desc="查看当前模式（智能选择 / 手动指定）" />
+            <CommandRow cmd="/mode family" desc="切换到智能选择 — 根据问题复杂度自动匹配模型（推荐）" />
+            <CommandRow cmd="/mode manual" desc="切换到手动指定 — 始终使用当前选中的模型" />
           </div>
           <div class="callout">
-            <strong>Family 模式说明</strong>
-            <p>普通问题使用标记为 <Chip color="terminal" text="daily" /> 的模型，复杂问题自动切换到 <Chip color="brand" text="complex" /> 模型。在管理台的模型页面为每个模型设置角色标记。</p>
+            <strong>智能选择说明</strong>
+            <p>普通问题使用标记为 <Chip color="terminal" text="日常" /> 的模型，复杂问题自动切换到 <Chip color="brand" text="复杂" /> 模型。在管理台的模型页面为每个模型设置角色标记。</p>
           </div>
         </Section>
 
@@ -45,8 +45,8 @@ export function guidePage(): Response {
             <div class="card stack">
               <strong>工作原理</strong>
               <ol class="guide-steps">
-                <li>每次 AI 回复后，Bot 在后台异步调用 Claude 分析对话</li>
-                <li>自动提取关键事实（偏好、习惯、背景信息等）存入数据库</li>
+                <li>每次 AI 回复后，Bot 在后台自动分析对话</li>
+                <li>自动提取关键事实（偏好、习惯、背景信息等）存入云端</li>
                 <li>下次对话时，排名靠前的记忆条目被注入到系统提示词中</li>
                 <li>Bot 因此能"记住"你，对话越多理解越准确</li>
               </ol>
@@ -57,7 +57,7 @@ export function guidePage(): Response {
                 <MemoryStatRow label="最大存储条数" value="40 条 / Bot" />
                 <MemoryStatRow label="每次对话注入" value="得分最高的 20 条" />
                 <MemoryStatRow label="命令查看上限" value="最近 10 条" />
-                <MemoryStatRow label="存储位置" value="Durable Object SQLite" />
+                <MemoryStatRow label="存储位置" value="云端 KV" />
               </div>
             </div>
           </div>
@@ -65,8 +65,8 @@ export function guidePage(): Response {
           <div class="callout" style="margin-top:14px">
             <strong>提取模型选择（优先级）</strong>
             <p>记忆提取是结构化 JSON 抽取任务，推荐配置一个便宜的小模型专门负责，避免每轮对话都消耗高价模型的 token。</p>
-            <p style="margin-top:8px">优先级：<Chip color="purple" text="extraction" /> 角色模型 → <Chip color="terminal" text="daily" /> 角色模型 → 列表第一个模型</p>
-            <p style="margin-top:8px">建议：在管理台给 Haiku / Gemini Flash / GPT-4o-mini 等小模型设置 <Chip color="purple" text="extraction" /> 角色。</p>
+            <p style="margin-top:8px">优先级：<Chip color="purple" text="记忆提取" /> 角色模型 → <Chip color="terminal" text="日常" /> 角色模型 → 列表第一个模型</p>
+            <p style="margin-top:8px">建议：在管理台给 Haiku / Gemini Flash / GPT-4o-mini 等小模型设置 <Chip color="purple" text="记忆提取" /> 角色。</p>
           </div>
 
           <div class="callout" style="margin-top:10px">
@@ -116,7 +116,7 @@ export function guidePage(): Response {
                 <li>在「供应商」区域添加 Provider（填写 API Key 与 Base URL）</li>
                 <li>点击「拉取模型」从 Provider 获取可用模型列表</li>
                 <li>勾选需要的模型点击「导入」，或在「模型」区域手动添加</li>
-                <li>给每个模型设置 <Chip color="terminal" text="daily" /> / <Chip color="brand" text="complex" /> 角色供 family 模式使用</li>
+                <li>给每个模型设置 <Chip color="terminal" text="日常" /> / <Chip color="brand" text="复杂" /> 角色供智能选择模式使用</li>
               </ol>
             </div>
             <div class="card stack">

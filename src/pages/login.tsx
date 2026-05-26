@@ -5,7 +5,7 @@ import { EmptyState, Section, StatusBadge, renderPage } from "./layout.tsx";
 export function loginPage(origin: string): Response {
   return renderPage({
     title: "微信消息中枢",
-    subtitle: "扫描二维码登录 WeClaw Hub，管理机器人、模型、定时任务与 Webhook 路由。",
+    subtitle: "扫描二维码登录，管理机器人、模型、定时任务与 Webhook 通知。",
     activeNav: "login",
     children: (
       <>
@@ -25,7 +25,6 @@ export function loginPage(origin: string): Response {
               <p class="muted">1. 点击"刷新二维码"</p>
               <p class="muted">2. 使用微信扫描</p>
               <p class="muted">3. 确认授权后自动完成机器人绑定</p>
-              <p class="footer-note">登录接口：{origin}/login/qr 与 {origin}/login/status</p>
               <div id="login-status">
                 <StatusBadge status="warn" text="等待扫码" />
               </div>

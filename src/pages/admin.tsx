@@ -48,7 +48,7 @@ export function adminPage(props: AdminPageProps): Response {
                   <strong>{bot.bot_id}</strong>
                   <div class="meta">
                     <span class="meta-chip">{bot.remark || "未备注"}</span>
-                    <span class="meta-chip">{bot.agent_mode || "family"} 模式</span>
+                    <span class="meta-chip">{bot.agent_mode === "family" ? "智能" : "手动"}</span>
                   </div>
                 </div>
                 <div class="inline">
@@ -106,8 +106,8 @@ export function adminPage(props: AdminPageProps): Response {
                   <div class="field">
                     <label>类型</label>
                     <select name="type">
-                      <option value="anthropic">anthropic</option>
-                      <option value="openai-compat">openai-compat</option>
+                      <option value="anthropic">Anthropic</option>
+                      <option value="openai-compat">OpenAI</option>
                     </select>
                   </div>
                   <div class="field"><label>接口地址</label><input name="baseUrl" placeholder="https://openrouter.ai/api/v1" /></div>
@@ -133,7 +133,7 @@ export function adminPage(props: AdminPageProps): Response {
 
         <Section
           title="模型"
-          description="支持 daily / complex 角色标记，供 family 模式自动选模。"
+          description="为模型设置角色标签，智能选择模式会根据角色自动匹配。"
           dot="brand"
         >
           <div class="grid">
@@ -555,7 +555,7 @@ document.getElementById("import-selected-models")?.addEventListener("click", asy
 }
 
 function displayProviderType(type: string): string {
-  return type === "anthropic" ? "Anthropic 原生" : type === "openai-compat" ? "OpenAI 兼容" : type;
+  return type === "anthropic" ? "Anthropic" : type === "openai-compat" ? "OpenAI" : type;
 }
 
 function displayModelRole(role: string): string {
