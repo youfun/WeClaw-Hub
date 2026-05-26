@@ -1,43 +1,71 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createCipheriv } from "node:crypto";
 import type { Credentials, WeixinMessage } from "../types.ts";
 
-const mockCallClaude = vi.fn();
-const mockDownloadImage = vi.fn();
-const mockSendMessage = vi.fn();
+/** Pre-encrypt bytes with AES-128-ECB so downloadImage can decrypt them back. */
+function encryptForCdn(bytes: Uint8Array, hexKey: string): Uint8Array {
+  const key = Buffer.from(hexKey, "hex");
+  const cipher = createCipheriv("aes-128-ecb", key, Buffer.alloc(0));
+  cipher.setAutoPadding(true);
+  return new Uint8Array(Buffer.concat([cipher.update(Buffer.from(bytes)), cipher.final()]));
+}
 
-vi.mock("../agent.ts", async () => {
-  const actual = await vi.importActual<typeof import("../agent.ts")>("../agent.ts");
-  return {
-    ...actual,
-    callClaude: mockCallClaude,
-  };
-});
+function mockFetchForBotSession(
+  imageBytes?: Uint8Array | null,
+  hexKey?: string,
+) {
+  return vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    const body = init?.body ? (typeof init.body === "string" ? init.body : "") : "";
 
-vi.mock("../cdn.ts", () => ({
-  downloadImage: mockDownloadImage,
-  inferImageMediaType: vi.fn(() => "image/jpeg"),
-}));
+    // CDN image download — return encrypted bytes that decrypt to imageBytes
+    if (url.includes("novac2c.cdn.weixin.qq.com")) {
+      if (imageBytes == null || !hexKey) {
+        return new Response(null, { status: 500 });
+      }
+      const encrypted = encryptForCdn(imageBytes, hexKey);
+      return new Response(encrypted, { status: 200 });
+    }
 
-vi.mock("../ilink.ts", async () => {
-  const actual = await vi.importActual<typeof import("../ilink.ts")>("../ilink.ts");
-  return {
-    ...actual,
-    sendMessage: mockSendMessage,
-  };
-});
+    // iLink API calls (sendMessage, etc.)
+    if (url.includes("ilink") || url.includes("example.com")) {
+      return new Response(JSON.stringify({ ret: 0 }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // Anthropic API
+    if (url.includes("anthropic")) {
+      return new Response(JSON.stringify({
+        content: [{ type: "text", text: "vision reply" }],
+      }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // OpenAI-compatible API
+    if (body.includes("chat/completions") || url.includes("chat/completions")) {
+      return new Response(JSON.stringify({
+        choices: [{ message: { content: "vision reply" } }],
+      }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    return new Response("{}", { status: 200 });
+  });
+}
 
 function createBotSession() {
   const sql = {
     exec: vi.fn((query: string, ...params: unknown[]) => {
       if (query.includes("SELECT role, content FROM chat_history")) {
-        return {
-          toArray: () => [],
-        };
+        return { toArray: () => [] };
       }
-
-      return {
-        toArray: () => [],
-      };
+      return { toArray: () => [] };
     }),
   };
 
@@ -68,14 +96,20 @@ const creds: Credentials = {
   ilink_user_id: "owner-1",
 };
 
+const TEST_IMAGE_ITEM = {
+  aeskey: "000102030405060708090a0b0c0d0e0f",
+  media: { encrypt_query_param: "enc", aes_key: "AAECAwQFBgcICQoLDA0ODw==" },
+};
+
 describe("BotSession image flow", () => {
-  beforeEach(() => {
-    mockCallClaude.mockReset().mockResolvedValue("vision reply");
-    mockDownloadImage.mockReset();
-    mockSendMessage.mockReset().mockResolvedValue({ ret: 0 });
+  let fetchMock: ReturnType<typeof vi.spyOn>;
+
+  afterEach(() => {
+    fetchMock?.mockRestore();
   });
 
   it("does not drop image-only messages in handleMessage", async () => {
+    fetchMock = mockFetchForBotSession();
     const { state, env } = createBotSession();
     const { BotSession } = await import("../BotSession.ts");
     const session = new BotSession(state, env) as any;
@@ -89,13 +123,7 @@ describe("BotSession image flow", () => {
       message_type: 1,
       message_state: 2,
       context_token: "ctx-1",
-      item_list: [{
-        type: 2,
-        image_item: {
-          aeskey: "000102030405060708090a0b0c0d0e0f",
-          media: { encrypt_query_param: "enc", aes_key: "AAECAwQFBgcICQoLDA0ODw==" },
-        },
-      }],
+      item_list: [{ type: 2, image_item: TEST_IMAGE_ITEM }],
     };
 
     await session.handleMessage(creds, msg);
@@ -110,6 +138,9 @@ describe("BotSession image flow", () => {
   });
 
   it("passes both text and image data to the LLM", async () => {
+    const imageBytes = Uint8Array.from([255, 216, 255]);
+    fetchMock = mockFetchForBotSession(imageBytes, TEST_IMAGE_ITEM.aeskey);
+
     const { state, env } = createBotSession();
     const { BotSession } = await import("../BotSession.ts");
     const session = new BotSession(state, env) as any;
@@ -123,31 +154,30 @@ describe("BotSession image flow", () => {
     });
     session.buildMemoryContext = vi.fn().mockResolvedValue("");
     session.extractMemories = vi.fn().mockResolvedValue(undefined);
-    mockDownloadImage.mockResolvedValue(Uint8Array.from([255, 216, 255]));
 
-    await session.handleWithAgent(creds, "user-1", "帮我看图", "ctx-1", {
-      aeskey: "000102030405060708090a0b0c0d0e0f",
-      media: { encrypt_query_param: "enc", aes_key: "AAECAwQFBgcICQoLDA0ODw==" },
+    await session.handleWithAgent(creds, "user-1", "帮我看图", "ctx-1", TEST_IMAGE_ITEM);
+
+    // Verify fetch was called with the right Anthropic request containing image
+    const apiCall = fetchMock.mock.calls.find((call: unknown[]) => {
+      const url = typeof call[0] === "string" ? call[0] : "";
+      return url.includes("anthropic");
     });
-
-    expect(mockCallClaude).toHaveBeenCalledWith(
-      [
-        { role: "assistant", content: "历史" },
-        {
-          role: "user",
-          content: "帮我看图",
-          image: {
-            data: Uint8Array.from([255, 216, 255]),
-            mediaType: "image/jpeg",
-          },
-        },
-      ],
-      "sys",
-      { apiKey: "key" },
-    );
+    expect(apiCall).toBeDefined();
+    const body = JSON.parse(apiCall![1]!.body as string) as {
+      messages: Array<{ role: string; content: unknown }>;
+    };
+    const lastMessage = body.messages[body.messages.length - 1]!;
+    expect(Array.isArray(lastMessage.content)).toBe(true);
+    const contents = lastMessage.content as Array<Record<string, unknown>>;
+    expect(contents[0]?.type).toBe("image");
+    expect(contents[1]?.type).toBe("text");
+    expect(contents[1]?.text).toBe("帮我看图");
   });
 
   it("falls back to a text placeholder when CDN download fails", async () => {
+    // Pass null imageBytes to simulate CDN failure
+    fetchMock = mockFetchForBotSession(null);
+
     const { state, env } = createBotSession();
     const { BotSession } = await import("../BotSession.ts");
     const session = new BotSession(state, env) as any;
@@ -161,23 +191,20 @@ describe("BotSession image flow", () => {
     });
     session.buildMemoryContext = vi.fn().mockResolvedValue("");
     session.extractMemories = vi.fn().mockResolvedValue(undefined);
-    mockDownloadImage.mockResolvedValue(null);
 
-    await session.handleWithAgent(creds, "user-1", "", "ctx-1", {
-      aeskey: "000102030405060708090a0b0c0d0e0f",
-      media: { encrypt_query_param: "enc", aes_key: "AAECAwQFBgcICQoLDA0ODw==" },
+    await session.handleWithAgent(creds, "user-1", "", "ctx-1", TEST_IMAGE_ITEM);
+
+    // Verify fetch was called with Anthropic API and the placeholder text
+    const apiCall = fetchMock.mock.calls.find((call: unknown[]) => {
+      const url = typeof call[0] === "string" ? call[0] : "";
+      return url.includes("anthropic");
     });
-
-    expect(mockCallClaude).toHaveBeenCalledWith(
-      [
-        {
-          role: "user",
-          content: "[图片（无法获取，请发文字描述）]",
-          image: undefined,
-        },
-      ],
-      "sys",
-      { apiKey: "key" },
-    );
+    expect(apiCall).toBeDefined();
+    const body = JSON.parse(apiCall![1]!.body as string) as {
+      messages: Array<{ role: string; content: unknown }>;
+    };
+    const lastMessage = body.messages[body.messages.length - 1]!;
+    // When download fails and no text, should be plain text with placeholder
+    expect(lastMessage.content).toBe("[图片（无法获取，请发文字描述）]");
   });
 });

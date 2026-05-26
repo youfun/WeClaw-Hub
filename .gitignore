@@ -41,3 +41,7 @@ docs
 ref
 
 .kiro/
+# Compiled JS output
+src/**/*.js
+.pi/
+.rpiv/

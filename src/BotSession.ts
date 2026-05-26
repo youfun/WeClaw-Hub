@@ -1007,6 +1007,8 @@ export class BotSession implements DurableObject {
     switch (url.pathname) {
       case "/login":
         return this.handleLogin(request);
+      case "/unbind":
+        return this.handleUnbind();
       case "/rate-limit":
         return this.handleRateLimit(request);
       case "/send":
@@ -1144,6 +1146,13 @@ export class BotSession implements DurableObject {
     const alarm = await this.state.storage.getAlarm();
     const pausedUntil = this.kvGet("paused_until");
     const isPaused = pausedUntil ? Date.now() < Number(pausedUntil) : false;
+
+    // Auto-resume polling after dev restart (DO alarm state is lost on wrangler dev reload)
+    if (creds && alarm === null && !isPaused) {
+      console.log("[status] auto-resuming polling after restart");
+      this.consecutiveFailures = 0;
+      await this.state.storage.setAlarm(Date.now() + 100);
+    }
 
     return json({
       logged_in: !!creds,
