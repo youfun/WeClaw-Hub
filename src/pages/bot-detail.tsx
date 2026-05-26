@@ -9,8 +9,6 @@ type BotSettings = {
   accept_webhook: boolean;
   agent_mode: "family" | "manual";
   active_model?: string;
-  image_provider_id?: string;
-  image_model?: string;
 };
 
 type BotDetailProps = {
@@ -20,7 +18,6 @@ type BotDetailProps = {
   notes: Array<{ id: string; content: string; hitCount?: number; lastHitAt?: number | null }>;
   tools: SystemTool[];
   models: Array<{ displayName: string }>;
-  providers: Array<{ id: string; name: string; type: string }>;
 };
 
 function humanSchedule(task: ScheduledTask): string {
@@ -126,26 +123,6 @@ export function botDetailPage(props: BotDetailProps): Response {
               </div>
             </div>
           </div>
-
-          <div style="height: 16px"></div>
-
-          <div class="card stack">
-            <strong>生图模型</strong>
-            <div class="form-grid">
-              <div class="field">
-                <label>供应商</label>
-                <select name="image_provider_id" form="settings-form">
-                  <option value="">不使用生图</option>
-                  {props.providers.map((provider) => <option value={provider.id} selected={props.settings.image_provider_id === provider.id}>{provider.name} ({provider.type})</option>)}
-                </select>
-              </div>
-              <div class="field">
-                <label>模型</label>
-                <input name="image_model" form="settings-form" value={props.settings.image_model || "dall-e-3"} placeholder="dall-e-3" />
-              </div>
-            </div>
-            <span class="helper">发送 /draw 命令时使用的图片生成模型。</span>
-          </div>
         </Section>
 
         <Section
@@ -179,9 +156,12 @@ export function botDetailPage(props: BotDetailProps): Response {
             )) : <EmptyState text="暂无定时任务。" />}
           </div>
 
-          <div style="height: 14px"></div>
+          <div class="inline" style="margin-top:12px">
+            <button id="toggle-task-form" class="button" type="button">+ 新建任务</button>
+          </div>
 
-          <form id="task-form" class="card stack">
+          <div id="task-form-wrap" class="card hidden" style="margin-top:12px">
+          <form id="task-form" class="stack">
             <strong>新建 / 编辑任务</strong>
             <input id="task-id" name="id" type="hidden" />
             <div class="form-grid">
@@ -237,8 +217,10 @@ export function botDetailPage(props: BotDetailProps): Response {
             <div class="inline">
               <button class="primary" type="submit">保存任务</button>
               <button id="task-reset" class="button" type="button">清空表单</button>
+              <button id="cancel-task-form" class="button" type="button">取消</button>
             </div>
           </form>
+          </div>
         </Section>
 
         <Section
@@ -302,6 +284,29 @@ async function api(method, path, body) {
     throw new Error(data.error || "request_failed");
   }
   return res.json().catch(() => ({}));
+}
+
+function toggleForm(btnId, wrapId, cancelBtnId) {
+  const btn = document.getElementById(btnId);
+  const wrap = document.getElementById(wrapId);
+  const cancelBtn = document.getElementById(cancelBtnId);
+  if (!btn || !wrap) return;
+  var addLabel = btn.textContent;
+  var closeLabel = "\u2212 收起";
+
+  function show() {
+    wrap.classList.remove("hidden");
+    btn.textContent = closeLabel;
+  }
+  function hide() {
+    wrap.classList.add("hidden");
+    btn.textContent = addLabel;
+  }
+
+  btn.addEventListener("click", function () {
+    wrap.classList.contains("hidden") ? show() : hide();
+  });
+  if (cancelBtn) cancelBtn.addEventListener("click", hide);
 }
 
 function renderParamFields(toolId, values) {
@@ -401,8 +406,6 @@ document.getElementById("settings-form")?.addEventListener("submit", async (even
     active_model: form.get("active_model"),
     keepalive: form.get("keepalive") === "true",
     accept_webhook: form.get("accept_webhook") === "true",
-    image_provider_id: form.get("image_provider_id") || undefined,
-    image_model: form.get("image_model") || undefined,
   });
   location.reload();
 });
@@ -443,6 +446,13 @@ document.querySelectorAll("[data-edit-task]").forEach((button) => {
     fillScheduleForm(task.schedule);
     document.getElementById("task-tool-id").value = task.tool_id;
     renderParamFields(task.tool_id, task.tool_params || {});
+    // Auto-expand the form
+    var wrap = document.getElementById("task-form-wrap");
+    var btn = document.getElementById("toggle-task-form");
+    if (wrap && wrap.classList.contains("hidden")) {
+      wrap.classList.remove("hidden");
+      if (btn) btn.textContent = "\u2212 收起";
+    }
     window.scrollTo({ top: document.getElementById("task-form").offsetTop - 24, behavior: "smooth" });
   });
 });
@@ -484,6 +494,7 @@ document.getElementById("clear-memory")?.addEventListener("click", async () => {
 
 switchScheduleMode("daily");
 renderParamFields(document.getElementById("task-tool-id")?.value || (botDetail.tools[0] && botDetail.tools[0].id), {});
+toggleForm("toggle-task-form", "task-form-wrap", "cancel-task-form");
 `;
 }
 

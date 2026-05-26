@@ -16,6 +16,8 @@ type AdminPageProps = {
   providers: LlmProvider[];
   models: CustomModel[];
   webhooks: Array<Backend | Record<string, unknown>>;
+  imageProviderId: string | null;
+  imageModel: string | null;
 };
 
 export function adminPage(props: AdminPageProps): Response {
@@ -92,8 +94,7 @@ export function adminPage(props: AdminPageProps): Response {
             <button id="toggle-provider-form" class="button" type="button">+ 添加供应商</button>
           </div>
 
-          <div id="provider-modal" class="modal-overlay hidden">
-            <div class="modal-card">
+          <div id="provider-form-wrap" class="card hidden" style="margin-top:12px">
               <form id="provider-form" class="stack">
                 <strong>添加供应商</strong>
                 <div class="form-grid">
@@ -114,7 +115,6 @@ export function adminPage(props: AdminPageProps): Response {
                   <button class="button" type="button" id="cancel-provider-form">取消</button>
                 </div>
               </form>
-            </div>
           </div>
 
           <div style="height: 14px"></div>
@@ -167,8 +167,7 @@ export function adminPage(props: AdminPageProps): Response {
             <button id="toggle-model-form" class="button" type="button">+ 添加模型</button>
           </div>
 
-          <div id="model-modal" class="modal-overlay hidden">
-            <div class="modal-card">
+          <div id="model-form-wrap" class="card hidden" style="margin-top:12px">
               <form id="model-form" class="stack">
                 <strong>添加模型</strong>
                 <div class="form-grid">
@@ -195,7 +194,6 @@ export function adminPage(props: AdminPageProps): Response {
                   <button class="button" type="button" id="cancel-model-form">取消</button>
                 </div>
               </form>
-            </div>
           </div>
 
           <form id="model-edit-form" class="card stack" hidden>
@@ -224,6 +222,32 @@ export function adminPage(props: AdminPageProps): Response {
               <button class="primary" type="submit">保存修改</button>
               <button class="button" type="button" id="model-edit-cancel">取消</button>
             </div>
+          </form>
+        </Section>
+
+        <Section
+          title="生图"
+          description="发送 /draw 命令时使用的图片生成模型。"
+          dot="amber"
+        >
+          <form id="image-form" class="card stack">
+            <div class="form-grid">
+              <div class="field">
+                <label>供应商</label>
+                <select name="image_provider_id">
+                  <option value="">不使用生图</option>
+                  {props.providers.map((provider) => <option value={provider.id} selected={props.imageProviderId === provider.id}>{provider.name}</option>)}
+                </select>
+              </div>
+              <div class="field">
+                <label>模型</label>
+                <select name="image_model">
+                  <option value="dall-e-3" selected={props.imageModel === "dall-e-3"}>dall-e-3</option>
+                  <option value="dall-e-2" selected={props.imageModel === "dall-e-2"}>dall-e-2</option>
+                </select>
+              </div>
+            </div>
+            <div class="inline"><button class="primary" type="submit">保存</button></div>
           </form>
         </Section>
 
@@ -263,8 +287,7 @@ export function adminPage(props: AdminPageProps): Response {
             <button id="toggle-webhook-form" class="button" type="button">+ 添加 Webhook</button>
           </div>
 
-          <div id="webhook-modal" class="modal-overlay hidden">
-            <div class="modal-card">
+          <div id="webhook-form-wrap" class="card hidden" style="margin-top:12px">
               <form id="webhook-form" class="stack">
                 <strong>添加 Webhook</strong>
                 <div class="form-grid">
@@ -311,7 +334,6 @@ export function adminPage(props: AdminPageProps): Response {
                   <button class="button" type="button" id="cancel-webhook-form">取消</button>
                 </div>
               </form>
-            </div>
           </div>
         </Section>
 
@@ -373,11 +395,10 @@ function toggleForm(btnId, modalId, cancelBtnId) {
     modal.classList.contains("hidden") ? showModal() : hideModal();
   });
   if (cancelBtn) cancelBtn.addEventListener("click", hideModal);
-  modal.addEventListener("click", function (e) { if (e.target === modal) hideModal(); });
 }
-toggleForm("toggle-provider-form", "provider-modal", "cancel-provider-form");
-toggleForm("toggle-model-form", "model-modal", "cancel-model-form");
-toggleForm("toggle-webhook-form", "webhook-modal", "cancel-webhook-form");
+toggleForm("toggle-provider-form", "provider-form-wrap", "cancel-provider-form");
+toggleForm("toggle-model-form", "model-form-wrap", "cancel-model-form");
+toggleForm("toggle-webhook-form", "webhook-form-wrap", "cancel-webhook-form");
 
 document.getElementById("provider-form")?.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -401,6 +422,17 @@ document.getElementById("webhook-form")?.addEventListener("submit", async (event
   body.bot_ids = Array.from(form.querySelectorAll('[name="bot_id"]:checked')).map((cb) => cb.value);
   delete body.bot_id;
   await api("POST", "/api/webhooks", body);
+  location.reload();
+});
+
+document.getElementById("image-form")?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const body = formToObject(form);
+  await api("PATCH", "/api/image-config", {
+    image_provider_id: body.image_provider_id || null,
+    image_model: body.image_model || null,
+  });
   location.reload();
 });
 
