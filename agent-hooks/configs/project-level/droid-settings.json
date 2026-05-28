@@ -1,0 +1,19 @@
+{
+  "_comment": "项目级 Claude Code Hook — 放于项目根目录 .claude/settings.json",
+  "_note": "仅在此项目中生效，可提交到 Git 让团队共享",
+
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/.claude/hooks/notify-weclaw.sh droid stop",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

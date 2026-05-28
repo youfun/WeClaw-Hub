@@ -1,0 +1,14 @@
+{
+  "_comment": "项目级 Cursor Hook — 放于项目根目录 .cursor/hooks.json",
+  "_note": "仅在此项目中生效，可提交到 Git 让团队共享",
+
+  "version": 1,
+  "hooks": {
+    "stop": [
+      {
+        "command": "bash ~/.cursor/hooks/notify-weclaw.sh amp stop",
+        "timeout": 10
+      }
+    ]
+  }
+}

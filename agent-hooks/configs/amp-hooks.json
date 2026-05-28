@@ -1,0 +1,27 @@
+{
+  "_comment": "Cursor (amp) Hook 配置 — 复制到 ~/.cursor/hooks.json",
+  "_note": "Cursor 会自动检测此文件并加载 hooks",
+  "_env": "需要在 ~/.zshrc 或 ~/.bashrc 中设置 WECLAW_WEBHOOK_URL 和 WECLAW_WEBHOOK_SECRET",
+
+  "version": 1,
+  "hooks": {
+    "stop": [
+      {
+        "command": "/path/to/agent-hooks/notify-weclaw.sh amp stop",
+        "timeout": 10
+      }
+    ],
+    "sessionEnd": [
+      {
+        "command": "/path/to/agent-hooks/notify-weclaw.sh amp session_end",
+        "timeout": 10
+      }
+    ],
+    "subagentStop": [
+      {
+        "command": "/path/to/agent-hooks/notify-weclaw.sh amp subagent_stop",
+        "timeout": 10
+      }
+    ]
+  }
+}

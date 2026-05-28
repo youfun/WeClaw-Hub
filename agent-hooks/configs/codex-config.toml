@@ -1,0 +1,19 @@
+# Codex CLI (codex) Hook 配置 — TOML 格式
+# 合并到 ~/.codex/config.toml，或放在项目 .codex/config.toml 中
+
+[[hooks.Stop]]
+# matcher 为空 = 每次 Stop 都触发
+matcher = ""
+
+[[hooks.Stop.hooks]]
+type = "command"
+command = "/path/to/agent-hooks/notify-weclaw.sh codex stop"
+timeout = 30
+
+[[hooks.SubagentStop]]
+matcher = ""
+
+[[hooks.SubagentStop.hooks]]
+type = "command"
+command = "/path/to/agent-hooks/notify-weclaw.sh codex subagent_stop"
+timeout = 30
