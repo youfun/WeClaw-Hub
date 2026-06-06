@@ -11,9 +11,13 @@ export interface Env {
   AUTH_TOKEN?: string;
   ANTHROPIC_API_KEY?: string;
   SYSTEM_PROMPT?: string;
+  WECLAW_HUB_VERSION?: string;
 
   // Legacy fallback (Phase 1 保留，Phase 2 移除)
   LLM_BASE_URL?: string;
   LLM_MODEL?: string;
   LLM_API_KEY?: string;
+
+  // Test-only switches. Do not set in production.
+  TEST_ONLY_ENABLE_SEED_CHAT?: string;
 }

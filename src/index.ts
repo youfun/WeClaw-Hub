@@ -13,10 +13,16 @@ import { botRoutes } from "./routes/bots.ts";
 import { providerRoutes } from "./routes/providers.ts";
 import { modelRoutes } from "./routes/models.ts";
 import { toolRoutes } from "./routes/tools.ts";
+import { secureCompare } from "./utils.ts";
+import { json } from "./utils.ts";
+import { invitePublicRoutes, inviteApiRoutes } from "./routes/invites.ts";
 import { adminPage, type BotSummary } from "./pages/admin.tsx";
 import { botDetailPage } from "./pages/bot-detail.tsx";
 import { guidePage } from "./pages/guide.tsx";
+import { landingPage } from "./pages/landing.tsx";
+import { invitePage } from "./pages/invites.tsx";
 import { BUILTIN_TOOLS } from "./tools.ts";
+import { listInvites } from "./invites.ts";
 import type { Backend, CustomModel, LlmProvider, ScheduledTask } from "./types.ts";
 
 // Create Hono app instance
@@ -51,8 +57,14 @@ app.post("/auth", async (c) => {
   });
 });
 
+// Landing page (public — the official website)
+app.get("/", () => landingPage());
+
 // Guide page (public — no auth needed, it's documentation)
 app.get("/guide", () => guidePage());
+
+// Invite public routes (no auth — invitees scan QR to bind bots)
+app.route("/", invitePublicRoutes);
 
 // Apply authentication middleware to all subsequent routes
 app.use("*", authMiddleware);
@@ -67,6 +79,7 @@ app.route("/", botRoutes);
 app.route("/", providerRoutes);
 app.route("/", modelRoutes);
 app.route("/", toolRoutes);
+app.route("/", inviteApiRoutes);
 
 // Backend routes (authenticated)
 app.get("/api/backends", async (c) => {
@@ -223,6 +236,12 @@ app.get("/admin", async (c) => {
   return adminPage({ bots, providers, models, webhooks, imageProviderId, imageModel, origin });
 });
 
+app.get("/admin/invites", async (c) => {
+  const invites = await listInvites(c.env);
+  const origin = new URL(c.req.url).origin;
+  return invitePage({ invites, origin });
+});
+
 app.get("/admin/bot/:id", async (c) => {
   const botId = decodeURIComponent(c.req.param("id"));
   const stub = c.env.BOT_SESSION.get(c.env.BOT_SESSION.idFromName(botId));
@@ -303,15 +322,6 @@ async function fetchBotJson<T>(stub: DurableObjectStub, path: string, fallback: 
   }
 }
 
-function secureCompare(left: string, right: string): boolean {
-  if (left.length !== right.length) return false;
-  let result = 0;
-  for (let i = 0; i < left.length; i++) {
-    result |= left.charCodeAt(i) ^ right.charCodeAt(i);
-  }
-  return result === 0;
-}
-
 function authFormPage(redirect: string, failed = false): Response {
   const safeRedirect = redirect.startsWith("/") ? redirect : "/admin";
   const html = `<!DOCTYPE html>
@@ -368,13 +378,6 @@ function generateSecret(): string {
   const bytes = new Uint8Array(24);
   crypto.getRandomValues(bytes);
   return btoa(String.fromCharCode(...bytes)).replace(/[+/=]/g, "").slice(0, 32);
-}
-
-function json(data: unknown, status = 200): Response {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { "Content-Type": "application/json" },
-  });
 }
 
 export default {

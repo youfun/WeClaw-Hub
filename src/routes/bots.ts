@@ -87,10 +87,14 @@ botRoutes.get("/api/bridge/connect", async (c) => {
 botRoutes.all("/bot/:id/*", async (c) => {
   const botId = decodeURIComponent(c.req.param("id"));
   const subPath = c.req.path.replace(`/bot/${c.req.param("id")}`, "") || "/status";
+  if (subPath.startsWith("/__internal/")) {
+    return c.notFound();
+  }
+  const queryString = new URL(c.req.url).search;
   const doId = c.env.BOT_SESSION.idFromName(botId);
   const stub = c.env.BOT_SESSION.get(doId);
 
-  return stub.fetch(new Request(`http://do${subPath}`, {
+  return stub.fetch(new Request(`http://do${subPath}${queryString}`, {
     method: c.req.method,
     headers: c.req.raw.headers,
     body: c.req.raw.body,

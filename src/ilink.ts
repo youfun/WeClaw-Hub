@@ -328,6 +328,12 @@ export async function pollQRStatus(qrcode: string, redirectHost?: string): Promi
   return apiGet<QRStatusResponse>(baseUrl + encodeURIComponent(qrcode), 40_000);
 }
 
+/** Quick poll with short timeout for invite pages — avoids blocking. */
+export async function quickPollQRStatus(qrcode: string, redirectHost?: string): Promise<QRStatusResponse> {
+  const baseUrl = redirectHost ? `https://${redirectHost}/ilink/bot/get_qrcode_status?qrcode=` : QR_STATUS_BASE_URL;
+  return apiGet<QRStatusResponse>(baseUrl + encodeURIComponent(qrcode), 5_000);
+}
+
 // ---- Helpers ----
 
 export function newClientId(): string {

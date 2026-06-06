@@ -150,6 +150,7 @@ export interface CustomModel {
   providerId: string;
   role?: "daily" | "complex" | "extraction" | null;
   maxOutputTokens?: number;
+  maxContextTokens?: number;
 }
 
 export interface ProviderModelOption {
@@ -302,6 +303,16 @@ export interface WebhookConfig {
   /** Template for formatting messages from JSON payload. ${path} resolves
    * fields via dot-notation. ${price * qty} evaluates arithmetic. */
   template?: string;
+}
+
+// ---- Conversation types ----
+
+export interface Conversation {
+  id: string;
+  user_id: string;
+  title: string;
+  created_at: number;
+  updated_at: number;
 }
 
 // ---- Gateway types ----
