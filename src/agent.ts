@@ -15,6 +15,7 @@ export interface Message {
 export interface LLMConfig {
   apiKey: string;
   baseUrl?: string;
+  anthropicBaseUrl?: string;
   model?: string;
   maxOutputTokens?: number;
   maxContextTokens?: number;
@@ -148,7 +149,7 @@ async function callAnthropic(
     content: buildAnthropicContent(message),
   }));
 
-  const res = await fetch(ANTHROPIC_API_URL, {
+  const res = await fetch(config.anthropicBaseUrl || ANTHROPIC_API_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -259,7 +260,7 @@ async function* streamAnthropic(
     content: buildAnthropicContent(message),
   }));
 
-  const res = await fetch(ANTHROPIC_API_URL, {
+  const res = await fetch(config.anthropicBaseUrl || ANTHROPIC_API_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

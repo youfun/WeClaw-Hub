@@ -14,4 +14,10 @@ export default defineConfig({
       },
     }),
   ],
+  // Exclude local adapter tests — they need Bun runtime (bun:test, bun:sqlite),
+  // not the Cloudflare workerd pool. Run them separately with `bun test:local`.
+  test: {
+    include: ["src/__tests__/**"],
+    exclude: ["src/__tests__/local/**", "node_modules/**"],
+  },
 });

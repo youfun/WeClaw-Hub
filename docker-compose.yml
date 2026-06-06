@@ -1,0 +1,28 @@
+services:
+  weclaw-hub:
+    build: .
+    ports:
+      - "8787:8787"
+    volumes:
+      # Persist SQLite database and KV data
+      - ./data:/app/data
+    environment:
+      # Required: set your AUTH_TOKEN for admin/API access
+      - AUTH_TOKEN=${AUTH_TOKEN:-}
+      # LLM API keys (optional — only needed for AI chat features)
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - ANTHROPIC_BASE_URL=${ANTHROPIC_BASE_URL:-}
+      - LLM_API_KEY=${LLM_API_KEY:-}
+      - LLM_BASE_URL=${LLM_BASE_URL:-}
+      - LLM_MODEL=${LLM_MODEL:-}
+      # System prompt (optional)
+      - SYSTEM_PROMPT=${SYSTEM_PROMPT:-你是一个有用的AI助手。}
+      # Enable seed-chat endpoint for testing (set to "1" to enable)
+      - TEST_ONLY_ENABLE_SEED_CHAT=${TEST_ONLY_ENABLE_SEED_CHAT:-1}
+    restart: unless-stopped
+    # Health check: /health endpoint returns "ok"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8787/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
