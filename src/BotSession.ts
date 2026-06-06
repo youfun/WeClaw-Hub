@@ -69,8 +69,8 @@ const TASK_FAILURE_BACKOFF_MAX_MS = 15 * 60_000;
 
 const TYPING_TICKET_TTL_MS = 5 * 60 * 1_000; // cache typing ticket 5 minutes
 const CHAT_HISTORY_LIMIT = 100; // 50 turns = 100 messages
-const COMPRESSION_THRESHOLD = 60; // 30 rounds = 60 messages, fallback trigger
-const COMPRESSION_TOKEN_RATIO = 0.7; // compress when estimated tokens exceed 70% of context
+const COMPRESSION_THRESHOLD = 80; // 40 rounds = 80 messages, skip marginal compression
+const COMPRESSION_TOKEN_RATIO = 0.85; // compress when estimated tokens exceed 85% of context (was 0.7)
 const COMPRESSION_TARGET_RATIO = 0.5; // aim below 50% after compression
 const COMPRESSION_KEEP_FIRST = 10; // keep opening context
 const COMPRESSION_KEEP_RECENT = 20; // keep recent context
@@ -1745,8 +1745,15 @@ export class BotSession implements DurableObject {
     const count = Number(rows[0]?.cnt ?? 0);
     if (count === 0) return { ok: true, original_count: 0 };
 
-    // Keep first N (opening context) + last M (recent context), compress the middle
-    const keepTotal = COMPRESSION_KEEP_FIRST + COMPRESSION_KEEP_RECENT;
+    // P3: Dynamic keepRecent based on COMPRESSION_TARGET_RATIO
+    const maxCtx = llmConfig.maxContextTokens ?? DEFAULT_MAX_CONTEXT_TOKENS;
+    const estimatedTokens = this.estimateHistoryTokens(userId, convId);
+    const avgPerMsg = Math.max(1, Math.ceil(estimatedTokens / count));
+    const targetKeepTokens = maxCtx * COMPRESSION_TARGET_RATIO;
+    const keepRecent = Math.max(5, Math.min(COMPRESSION_KEEP_RECENT, Math.round(targetKeepTokens / avgPerMsg)));
+    const keepFirst = COMPRESSION_KEEP_FIRST;
+    const keepTotal = keepFirst + keepRecent;
+
     if (count <= keepTotal) return { ok: true, original_count: 0 };
 
     const toCompress = count - keepTotal;
@@ -1759,11 +1766,26 @@ export class BotSession implements DurableObject {
       .toArray();
     const nextIndex = Number(snapRows[0]?.max_idx ?? -1) + 1;
 
-    // Get middle messages (offset = KEEP_FIRST, limit = toCompress)
+    // P1: Turn-aligned — ensure first compressed message is a user message
+    let alignedKeepFirst = keepFirst;
+    let alignedToCompress = toCompress;
+
+    const firstCompressed = this.state.storage.sql
+      .exec(
+        "SELECT role FROM chat_history WHERE user_id = ? AND conversation_id = ? ORDER BY created_at ASC, id ASC LIMIT 1 OFFSET ?",
+        userId, convId, alignedKeepFirst,
+      )
+      .toArray();
+    if (firstCompressed.length > 0 && firstCompressed[0]!.role === "assistant" && alignedKeepFirst > 0) {
+      alignedKeepFirst--;
+      alignedToCompress++;
+    }
+
+    // Get middle messages with aligned offsets
     const middleMessages = this.state.storage.sql
       .exec(
         "SELECT role, content FROM chat_history WHERE user_id = ? AND conversation_id = ? ORDER BY created_at ASC, id ASC LIMIT ? OFFSET ?",
-        userId, convId, toCompress, COMPRESSION_KEEP_FIRST,
+        userId, convId, alignedToCompress, alignedKeepFirst,
       )
       .toArray();
 
@@ -1771,10 +1793,28 @@ export class BotSession implements DurableObject {
       .map((r) => `${r.role === "user" ? "用户" : "助手"}：${(r.content as string).slice(0, 300)}`)
       .join("\n");
 
+    // P2: Include previous summaries in compression prompt for retention tracking
+    const existingSummaryRows = this.state.storage.sql
+      .exec(
+        "SELECT summary_text FROM conversation_summaries WHERE conversation_id = ? ORDER BY snapshot_index ASC",
+        convId,
+      )
+      .toArray();
+
+    let summaryPrompt: string;
+    if (existingSummaryRows.length > 0) {
+      const existingContext = existingSummaryRows
+        .map((r) => (r.summary_text as string).slice(0, 500))
+        .join("\n---\n");
+      summaryPrompt = `之前对话摘要：\n${existingContext}\n\n请补充总结以下新增对话，保留关键话题和结论：\n\n${conversationText}`;
+    } else {
+      summaryPrompt = `请用中文简洁总结以下对话，保留关键话题和结论：\n\n${conversationText}`;
+    }
+
     let summaryText: string;
     try {
       summaryText = await callClaude(
-        [{ role: "user", content: `请用中文简洁总结以下对话，保留关键话题和结论：\n\n${conversationText}` }],
+        [{ role: "user", content: summaryPrompt }],
         "你是一个对话摘要助手。用中文简洁地总结以下对话，保留关键话题和结论。只返回摘要，不要任何其他内容。",
         llmConfig,
       );
@@ -1786,18 +1826,18 @@ export class BotSession implements DurableObject {
     const now = Date.now();
     this.state.storage.sql.exec(
       "INSERT INTO conversation_summaries (conversation_id, snapshot_index, summary_text, original_count, created_at) VALUES (?, ?, ?, ?, ?)",
-      convId, nextIndex, summaryText, toCompress, now,
+      convId, nextIndex, summaryText, alignedToCompress, now,
     );
 
-    // Delete middle messages only — keep first KEEP_FIRST, keep last KEEP_RECENT
+    // Delete middle messages using aligned offsets
     this.state.storage.sql.exec(
       `DELETE FROM chat_history WHERE user_id = ? AND conversation_id = ? AND id IN (
         SELECT id FROM chat_history WHERE user_id = ? AND conversation_id = ? ORDER BY created_at ASC, id ASC LIMIT ? OFFSET ?
       )`,
-      userId, convId, userId, convId, toCompress, COMPRESSION_KEEP_FIRST,
+      userId, convId, userId, convId, alignedToCompress, alignedKeepFirst,
     );
 
-    return { ok: true, snapshot_index: nextIndex, original_count: toCompress };
+    return { ok: true, snapshot_index: nextIndex, original_count: alignedToCompress };
   }
 
   private getCompressionStatus(userId: string): { summaries: Array<{ snapshot_index: number; original_count: number; created_at: number }>; message_count: number } {
