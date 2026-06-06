@@ -15,6 +15,7 @@
 // ──────────────────────────────────────────────────────────────────────────
 
 import type { Env } from "./env.ts";
+import type { IBotState } from "./adapter-interfaces";
 import type {
   Credentials,
   WeixinMessage,
@@ -205,8 +206,8 @@ interface MemoryNote {
   score: number;
 }
 
-export class BotSession implements DurableObject {
-  state: DurableObjectState;
+export class BotSession {
+  state: IBotState;
   env: Env;
   private initialized = false;
   private consecutiveFailures = 0;
@@ -214,7 +215,7 @@ export class BotSession implements DurableObject {
   private lastBridgePing = 0;
   private lastExtractedCount = new Map<string, number>();
 
-  constructor(state: DurableObjectState, env: Env) {
+  constructor(state: IBotState, env: Env) {
     this.state = state;
     this.env = env;
   }
@@ -544,6 +545,7 @@ export class BotSession implements DurableObject {
       return {
         apiKey: this.env.LLM_API_KEY ?? this.env.ANTHROPIC_API_KEY ?? "",
         baseUrl: this.env.LLM_BASE_URL,
+        anthropicBaseUrl: this.env.ANTHROPIC_BASE_URL,
         model: model.model,
         maxOutputTokens: model.maxOutputTokens,
         maxContextTokens: model.maxContextTokens,
@@ -577,6 +579,7 @@ export class BotSession implements DurableObject {
       config: {
         apiKey: this.env.LLM_API_KEY ?? this.env.ANTHROPIC_API_KEY ?? "",
         baseUrl: this.env.LLM_BASE_URL,
+        anthropicBaseUrl: this.env.ANTHROPIC_BASE_URL,
         model: this.env.LLM_MODEL,
       },
       displayName: this.env.LLM_BASE_URL ? (this.env.LLM_MODEL ?? DEFAULT_OPENAI_MODEL) : DEFAULT_ANTHROPIC_MODEL,
