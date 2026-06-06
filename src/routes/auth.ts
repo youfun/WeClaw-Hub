@@ -3,6 +3,7 @@
 
 import type { Context, Next } from "hono";
 import type { Env } from "../env.ts";
+import { secureCompare, getBearerToken } from "../utils.ts";
 
 export async function authMiddleware(c: Context<{ Bindings: Env }>, next: Next) {
   const pathname = new URL(c.req.url).pathname;
@@ -51,21 +52,9 @@ function isHtmlRequest(c: Context): boolean {
   return (c.req.header("Accept") || "").includes("text/html");
 }
 
-function getBearerToken(auth: string): string {
-  if (!auth.startsWith("Bearer ")) return "";
-  return auth.slice(7);
-}
-
 function getCookieToken(cookieHeader: string): string {
   const match = cookieHeader.match(/(?:^|;\s*)auth_token=([^;]+)/);
   return match ? decodeURIComponent(match[1]!) : "";
 }
 
-function secureCompare(left: string, right: string): boolean {
-  if (left.length !== right.length) return false;
-  let result = 0;
-  for (let i = 0; i < left.length; i++) {
-    result |= left.charCodeAt(i) ^ right.charCodeAt(i);
-  }
-  return result === 0;
-}
+

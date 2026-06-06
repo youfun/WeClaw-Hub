@@ -41,6 +41,7 @@ function Layout({ title, subtitle, activeNav, children }: LayoutProps) {
               <a href="/guide" class={activeNav === "guide" ? "nav-active" : ""}>使用说明</a>
               <a href="/admin" class={activeNav === "admin" ? "nav-active" : ""}>管理台</a>
               <a href="/login" class={activeNav === "login" ? "nav-active" : ""}>绑定账号</a>
+              <a href="/admin/invites" class={activeNav === "admin" ? "nav-active" : ""}>邀请绑定</a>
             </nav>
           </header>
           <main class="content">{children}</main>

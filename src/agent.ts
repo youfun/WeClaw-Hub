@@ -17,6 +17,7 @@ export interface LLMConfig {
   baseUrl?: string;
   model?: string;
   maxOutputTokens?: number;
+  maxContextTokens?: number;
 }
 
 const HISTORY_LIMIT = 100; // 50 turns = 100 messages

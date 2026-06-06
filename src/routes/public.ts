@@ -5,6 +5,7 @@ import { Hono } from "hono";
 import type { Env } from "../env.ts";
 import type { WebhookConfig, WebhookVerifyMode } from "../types.ts";
 import { parseWebhookMessage } from "../webhooks/index.ts";
+import { secureCompare } from "../utils.ts";
 
 export const publicRoutes = new Hono<{ Bindings: Env }>();
 
@@ -73,7 +74,8 @@ async function verifyWebhookRequest(
   }
 
   if (config.verify === "bearer") {
-    return secureCompare(getBearerToken(request), config.secret);
+    const auth = (request.headers.get("Authorization") || "");
+    return secureCompare(auth.startsWith("Bearer ") ? auth.slice(7) : "", config.secret);
   }
 
   const headerName = config.header_field || "X-Hub-Signature-256";
@@ -83,12 +85,6 @@ async function verifyWebhookRequest(
   const expected = await hmacSha256Hex(config.secret, rawBody);
   const normalized = signature.trim().toLowerCase().replace(/^sha256=/, "");
   return secureCompare(normalized, expected);
-}
-
-function getBearerToken(request: Request): string {
-  const auth = request.headers.get("Authorization") || "";
-  if (!auth.startsWith("Bearer ")) return "";
-  return auth.slice(7);
 }
 
 async function hmacSha256Hex(secret: string, payload: string): Promise<string> {
@@ -108,16 +104,6 @@ async function hmacSha256Hex(secret: string, payload: string): Promise<string> {
   return [...new Uint8Array(signature)]
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("");
-}
-
-function secureCompare(left: string, right: string): boolean {
-  if (left.length !== right.length) return false;
-
-  let result = 0;
-  for (let index = 0; index < left.length; index += 1) {
-    result |= left.charCodeAt(index) ^ right.charCodeAt(index);
-  }
-  return result === 0;
 }
 
 async function deliverWebhookMessage(

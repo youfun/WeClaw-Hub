@@ -7,7 +7,10 @@ export default defineConfig({
       wrangler: { configPath: "./wrangler.toml" },
       miniflare: {
         // Provide a dummy AUTH_TOKEN so management routes are reachable in tests
-        bindings: { AUTH_TOKEN: "test-token" },
+        bindings: {
+          AUTH_TOKEN: "test-token",
+          TEST_ONLY_ENABLE_SEED_CHAT: "1",
+        },
       },
     }),
   ],
