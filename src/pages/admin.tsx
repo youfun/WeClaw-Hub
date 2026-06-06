@@ -58,6 +58,9 @@ export function adminPage(props: AdminPageProps): Response {
                     text={bot.polling ? "轮询中" : "已停止"}
                     pulse={bot.polling}
                   />
+                  <button class="button" type="button" data-toggle-polling={bot.bot_id} data-next={bot.polling ? "stop" : "start"} style={bot.polling ? "" : "background:var(--brand);color:#fff;border-color:var(--brand)"}>
+                    {bot.polling ? "停止" : "启动"}
+                  </button>
                   <a class="button primary" href={`/admin/bot/${encodeURIComponent(bot.bot_id)}`}>进入配置</a>
                   <button class="button" type="button" data-unbind-bot={bot.bot_id}>解除</button>
                 </div>
@@ -593,6 +596,18 @@ document.querySelectorAll("[data-unbind-bot]").forEach((button) => {
     if (!confirm("确定要解除绑定吗？")) return;
     await wrapSubmit(button, "解除中...", async () => {
       await api("POST", "/bot/" + button.dataset.unbindBot + "/unbind");
+      location.reload();
+    });
+  });
+});
+
+document.querySelectorAll("[data-toggle-polling]").forEach((button) => {
+  button.addEventListener("click", async () => {
+    const botId = button.dataset.togglePolling;
+    const action = button.dataset.next; // "start" or "stop"
+    const label = action === "stop" ? "停止中..." : "启动中...";
+    await wrapSubmit(button, label, async () => {
+      await api("POST", "/bot/" + botId + "/" + action);
       location.reload();
     });
   });

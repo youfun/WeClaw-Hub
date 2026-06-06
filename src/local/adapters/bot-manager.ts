@@ -60,9 +60,26 @@ export function createBotNamespace(
       if (!bots.has(botId)) {
         const env = buildEnv();
         env.BOT_SESSION = namespace; // self-reference
-        const state = createBotState(db);
+
+        // Mutable ref for alarm callback — solved after bot is constructed
+        let alarmTrigger: (() => Promise<void>) | null = null;
+
+        const state = createBotState(db, async () => {
+          if (alarmTrigger) await alarmTrigger();
+        });
+
         const bot = new BotSession(state, env);
+
+        // Wire up the alarm: when setAlarm fires, trigger BotSession.alarm()
+        // which runs the getUpdates → handleMessage → setAlarm loop.
+        alarmTrigger = () => bot.alarm();
+
         bots.set(botId, bot);
+
+        // Kickstart polling if already logged in (container restart recovery)
+        bot.alarm().catch((err) =>
+          console.error("[bot-manager] initial alarm failed:", err),
+        );
       }
       const bot = bots.get(botId)!;
       return {

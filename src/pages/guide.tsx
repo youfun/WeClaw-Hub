@@ -26,6 +26,22 @@ export function guidePage(): Response {
           </div>
         </Section>
 
+        <Section title="对话管理" description="管理多个对话分支，切换与压缩历史。" dot="green">
+          <div class="grid">
+            <CommandRow cmd="/conv" desc="列出所有对话，显示编号、标题和消息数" />
+            <CommandRow cmd="/conv new [标题]" desc="新建一个空白对话" example="/conv new 技术讨论" />
+            <CommandRow cmd="/conv <序号>" desc="切换到指定对话（序号来自 /conv 列表）" example="/conv 2" />
+            <CommandRow cmd="/conv rename <序号> <标题>" desc="重命名对话" example="/conv rename 1 新标题" />
+            <CommandRow cmd="/conv delete <序号>" desc="删除对话及其消息（至少保留一个对话）" example="/conv delete 3" />
+            <CommandRow cmd="/compress" desc="压缩当前对话历史，将旧消息替换为摘要以减少 token 消耗" />
+          </div>
+          <div class="callout">
+            <strong>多对话场景</strong>
+            <p>每个用户可以创建多个独立对话，不同话题互不干扰。切换对话后 AI 只看到当前对话的历史，干净清爽。<br />
+            使用 <span class="code-inline">/compress</span> 可以在长对话中触发自动摘要压缩：保留最近 20 条消息 + 最早 10 条消息，中间部分用摘要替代。</p>
+          </div>
+        </Section>
+
         <Section title="模型与模式" description="控制 AI 使用哪个模型以及选模逻辑。" dot="terminal">
           <div class="grid">
             <CommandRow cmd="/model" desc="列出所有可用模型，显示当前激活的模型" />

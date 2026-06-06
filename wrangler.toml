@@ -25,7 +25,8 @@ binding = "CONTACTS"
 id = "6f16673ab6824ea4963455608a195fad"
 
 [vars]
-WECLAW_HUB_VERSION = "0.2.0"
+WECLAW_HUB_VERSION = "0.3.0"
+WECLAW_DEPLOYER = "manual"
 SYSTEM_PROMPT = "你是一個有用的AI助手。"
 
 # ---- LLM 配置 ----
@@ -36,5 +37,8 @@ SYSTEM_PROMPT = "你是一個有用的AI助手。"
 # LLM_BASE_URL = "https://openrouter.ai/api/v1"
 # LLM_MODEL    = "openai/gpt-4o"          # 省略則用 gpt-4o
 # wrangler secret put LLM_API_KEY          # OpenRouter 或其他 provider 的 key
+#
+# 方案三：自定義 Anthropic 兼容端點（StepFun 等）
+# wrangler secret put ANTHROPIC_BASE_URL
 #
 # LLM_API_KEY 優先於 ANTHROPIC_API_KEY；LLM_MODEL 可覆蓋任一模式的默認模型。
