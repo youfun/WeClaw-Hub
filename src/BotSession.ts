@@ -1870,6 +1870,7 @@ export class BotSession {
     const creds = this.getCredentials();
     if (!creds) return json({ error: "not logged in" }, 401);
     this.consecutiveFailures = 0;
+    this.kvSet("polling_stopped", ""); // clear stopped flag
     try {
       await notifyStart(creds);
     } catch (err) {
@@ -1881,6 +1882,7 @@ export class BotSession {
 
   // POST /stop
   private async handleStop(): Promise<Response> {
+    this.kvSet("polling_stopped", "1"); // persistent stop — survives DO hibernation
     const creds = this.getCredentials();
     if (creds) {
       try {
@@ -2018,6 +2020,9 @@ export class BotSession {
 
     const creds = this.getCredentials();
     if (!creds) return;
+
+    // Manually stopped via management console — skip polling entirely
+    if (this.kvGet("polling_stopped") === "1") return;
 
     // MVP fix 1+2: Run tasks BEFORE getUpdates — tasks are independent of poll success.
     // Session expired / poll errors only affect message reception, not scheduled tasks.
