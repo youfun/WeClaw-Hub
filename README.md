@@ -94,14 +94,10 @@ bun run deploy
 ### 方式二：Docker（自托管）
 
 ```bash
-# 1. 克隆仓库
-git clone https://github.com/youfun/WeClaw-Hub.git
-cd WeClaw-Hub
+# 1. 直接运行（推荐）
+docker run -d -p 8787:8787 -e AUTH_TOKEN=your-secret-token -v ./data:/app/data ghcr.io/youfun/weclaw-hub:latest
 
-# 2. 启动
-AUTH_TOKEN=your-secret-token docker compose up -d
-
-# 3. 访问管理台
+# 2. 访问管理台
 open http://localhost:8787/admin
 ```
 
@@ -109,38 +105,42 @@ open http://localhost:8787/admin
 
 ```bash
 # Anthropic 原生
-ANTHROPIC_API_KEY=sk-ant-xxx docker compose up -d
+docker run -d -p 8787:8787 \
+  -e AUTH_TOKEN=xxx \
+  -e ANTHROPIC_API_KEY=sk-ant-xxx \
+  -v ./data:/app/data \
+  ghcr.io/youfun/weclaw-hub:latest
 
 # OpenAI 兼容（OpenRouter / StepFun 等）
-LLM_BASE_URL=https://api.openai.com/v1 \
-LLM_API_KEY=sk-xxx \
-LLM_MODEL=gpt-4o docker compose up -d
-
-# 自定义 Anthropic 端点（StepFun 等）
-ANTHROPIC_BASE_URL=https://api.stepfun.com/step_plan/v1/messages \
-ANTHROPIC_API_KEY=sk-xxx \
-LLM_MODEL=step-router-v1 docker compose up -d
+docker run -d -p 8787:8787 \
+  -e AUTH_TOKEN=xxx \
+  -e LLM_BASE_URL=https://api.openai.com/v1 \
+  -e LLM_API_KEY=sk-xxx \
+  -e LLM_MODEL=gpt-4o \
+  -v ./data:/app/data \
+  ghcr.io/youfun/weclaw-hub:latest
 ```
 
 > 也可先启动再登录管理台 → 供应商 → 手动添加 Provider，支持环境变量 `${VAR}` 插值。
 
 **数据持久化**：SQLite 数据库保存在 `./data/weclaw.db`（Volume 挂载）。
 
-**GitHub Container Registry**：
+**镜像来源**：GitHub Container Registry（[ghcr.io/youfun/weclaw-hub](https://github.com/youfun/WeClaw-Hub/pkgs/container/weclaw-hub)）。
+
+**可用 Tag**：
+- `latest` — main 分支或正式 release
+- `dev` — dev 分支
+- `0.4.0` — 指定版本
+
+**从源码构建**（不推荐，除非需要自定义）：
 
 ```bash
-# latest（main 分支或正式 release）
-docker pull ghcr.io/youfun/weclaw-hub:latest
+# 1. 克隆仓库
+git clone https://github.com/youfun/WeClaw-Hub.git
+cd WeClaw-Hub
 
-# dev 分支
-# docker pull ghcr.io/youfun/weclaw-hub:dev
-
-# 指定版本
-# docker pull ghcr.io/youfun/weclaw-hub:0.4.0
-```
-
-```bash
-docker run -d -p 8787:8787 -e AUTH_TOKEN=xxx -v ./data:/app/data ghcr.io/youfun/weclaw-hub:latest
+# 2. 启动
+AUTH_TOKEN=your-secret-token docker compose up -d
 ```
 
 ### 方式三：Bun 直接运行
