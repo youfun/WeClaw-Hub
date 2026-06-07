@@ -85,7 +85,7 @@ function Landing() {
                   <div>
                     <h4>Cloudflare Workers</h4>
                     <p>零成本部署在 Cloudflare 边缘网络。点击按钮一键部署，无需服务器。</p>
-                    <a href="https://deploy.workers.cloudflare.com/?url=https://github.com/youfun/weclaw-hub" target="_blank" rel="noopener" style="display:inline-block;margin-top:8px"><img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare" height="32" /></a>
+                    <a href="https://deploy.workers.cloudflare.com/?url=https://github.com/youfun/weclaw-hub" target="_blank" rel="noopener" class="d-inline-block mt-2"><img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare" height="32" /></a>
                   </div>
                 </div>
                 <div class="step fade-up" style="animation-delay:0.2s">
@@ -93,7 +93,7 @@ function Landing() {
                   <div>
                     <h4>Docker 自托管</h4>
                     <p>VPS / NAS / 本地服务器上运行，数据和日志持久化。GitHub Actions 自动构建。</p>
-                    <p style="font-size:0.8125rem;color:var(--ink-muted);margin-top:4px"><code>docker compose up -d</code></p>
+                    <p class="text-sm text-muted mt-1"><code>docker compose up -d</code></p>
                   </div>
                 </div>
                 <div class="step fade-up" style="animation-delay:0.3s">
@@ -101,7 +101,7 @@ function Landing() {
                   <div>
                     <h4>Bun 直接运行</h4>
                     <p>开发调试、快速尝鲜。原生 SQLite，零外部依赖，一行命令启动。</p>
-                    <p style="font-size:0.8125rem;color:var(--ink-muted);margin-top:4px"><code>bun run src/local/server.ts</code></p>
+                    <p class="text-sm text-muted mt-1"><code>bun run src/local/server.ts</code></p>
                   </div>
                 </div>
               </div>
@@ -184,6 +184,28 @@ const styles = `
   --sky: #0ea5e9;
   --purple: #7c3aed;
   --shadow: 0 16px 40px rgba(61, 39, 22, 0.08);
+
+  /* Spacing scale (4px base) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* Typography scale */
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-body: 13px;
+  --text-base: 14px;
+  --text-md: 15px;
+  --text-lg: 18px;
+  --text-xl: 20px;
+  --text-2xl: clamp(28px, 4vw, 44px);
 }
 
 *, *::before, *::after { box-sizing: border-box; }

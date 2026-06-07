@@ -98,11 +98,11 @@ export function adminPage(props: AdminPageProps): Response {
             )) : <EmptyState text="暂无供应商。" />}
           </div>
 
-          <div class="inline" style="margin-top:12px">
+          <div class="inline mt-3">
             <button id="toggle-provider-form" class="button" type="button">+ 添加供应商</button>
           </div>
 
-          <div id="provider-form-wrap" class="card hidden" style="margin-top:12px">
+          <div id="provider-form-wrap" class="card hidden mt-3">
               <form id="provider-form" class="stack">
                 <strong>添加供应商</strong>
                 <div class="form-grid">
@@ -152,9 +152,9 @@ export function adminPage(props: AdminPageProps): Response {
 
           <div id="model-import" class="card stack hidden">
             <strong id="model-import-title">从供应商导入模型</strong>
-            <div id="model-import-roles" class="meta" style="margin-bottom:12px;font-size:13px;line-height:1.8"></div>
+            <div id="model-import-roles" class="meta text-body" style="margin-bottom:12px;line-height:1.8"></div>
             <div id="model-import-list" class="stack"></div>
-            <div class="inline" style="margin-top:6px">
+            <div class="inline mt-2">
               <button id="import-selected-models" class="primary" type="button">导入所选模型</button>
             </div>
           </div>
@@ -195,11 +195,11 @@ export function adminPage(props: AdminPageProps): Response {
             )) : <EmptyState text="暂无模型配置。" />}
           </div>
 
-          <div class="inline" style="margin-top:12px">
+          <div class="inline mt-3">
             <button id="toggle-model-form" class="button" type="button">+ 添加模型</button>
           </div>
 
-          <div id="model-form-wrap" class="card hidden" style="margin-top:12px">
+          <div id="model-form-wrap" class="card hidden mt-3">
               <form id="model-form" class="stack">
                 <strong>添加模型</strong>
                 <div class="form-grid">
@@ -763,25 +763,25 @@ document.querySelectorAll("[data-load-models]").forEach((button) => {
         if (imported.has(model.id)) {
           const existing = adminData.models.find((m) => m.model === model.id && m.providerId === activeProviderId);
           const roleText = existing?.role === 'complex' ? '复杂' : existing?.role === 'extraction' ? '记忆提取' : existing?.role === 'daily' ? '日常' : '';
-          const roleBadge = roleText ? '<span style="font-size:11px;color:var(--brand);margin-left:4px">' + roleText + '</span>' : '';
-          return '<label class="row" style="align-items:center;gap:8px;opacity:0.6">' +
+          const roleBadge = roleText ? '<span class="text-xs text-brand" style="margin-left:var(--space-1)">' + roleText + '</span>' : '';
+          return '<label class="row items-center gap-2" style="opacity:0.6">' +
             '<input type="checkbox" disabled>' +
-            '<span style="flex:1;min-width:0"><strong>' + model.name + '</strong><span class="meta"><span class="code-inline">' + model.id + '</span>' + roleBadge + '</span></span>' +
-            '<span style="font-size:11px;color:var(--ink-muted)">已导入</span>' +
+            '<span class="flex-1 min-w-0"><strong>' + model.name + '</strong><span class="meta"><span class="code-inline">' + model.id + '</span>' + roleBadge + '</span></span>' +
+            '<span class="text-xs text-muted">已导入</span>' +
           '</label>';
         }
         const guessedRole = guessRole(model.name);
         const isText = isTextModel(model.name);
         const conflict = guessedRole ? adminData.models.find((m) => m.role === guessedRole && m.model !== model.id) : null;
         const warnHtml = conflict
-          ? '<span style="font-size:11px;color:#b6542d;margin-left:4px">将替换 ' + conflict.displayName + '</span>'
+          ? '<span class="text-xs text-brand" style="margin-left:var(--space-1)">将替换 ' + conflict.displayName + '</span>'
           : '';
-        return '<label class="row" style="align-items:center;gap:8px">' +
+        return '<label class="row items-center gap-2">' +
           '<input type="checkbox" data-import-model="' + model.id + '" data-import-name="' + model.name + '" ' + (isText ? 'checked' : '') + '>' +
-          '<span style="flex:1;min-width:0"><strong>' + model.name + '</strong><span class="meta"><span class="code-inline">' + model.id + '</span></span></span>' +
-          '<span style="display:inline-flex;align-items:center;gap:6px">' +
-            '<select data-import-role="' + model.id + '" style="width:auto;font-size:12px;padding:4px 8px">' +
-              '<option value="">--</option>' +
+          '<span class="flex-1 min-w-0"><strong>' + model.name + '</strong><span class="meta"><span class="code-inline">' + model.id + '</span></span></span>' +
+          '<span class="d-inline-flex items-center gap-1">' +
+            '<select data-import-role="' + model.id + '" class="text-sm" style="width:auto;padding:var(--space-1) var(--space-2)">' +
+              '<option value="--">--</option>' +
               '<option value="daily"' + (guessedRole === 'daily' ? ' selected' : '') + '>日常</option>' +
               '<option value="complex"' + (guessedRole === 'complex' ? ' selected' : '') + '>复杂</option>' +
               '<option value="extraction">记忆提取</option>' +

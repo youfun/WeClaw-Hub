@@ -45,12 +45,12 @@ export function invitePage(props: InvitePageProps): Response {
               <button class="primary" type="submit">生成邀请链接</button>
             </div>
           </form>
-          <div id="invite-result" class="card hidden" style="margin-top: 12px">
+          <div id="invite-result" class="card mt-3 hidden">
             <strong>邀请已生成</strong>
-            <p class="meta" style="margin: 8px 0">链接：<a id="invite-link" href="#" target="_blank" style="word-break:break-all"></a></p>
-            <div id="invite-qr" style="margin-top:12px"></div>
-            <button class="button" type="button" id="copy-invite-link" style="margin-top:8px">复制链接</button>
-            <button class="button" type="button" id="close-invite-result" style="margin-top:8px">关闭</button>
+            <p class="meta mt-2">链接：<a id="invite-link" href="#" target="_blank" style="word-break:break-all"></a></p>
+            <div id="invite-qr" class="mt-3"></div>
+            <button class="button mt-2" type="button" id="copy-invite-link">复制链接</button>
+            <button class="button mt-2" type="button" id="close-invite-result">关闭</button>
           </div>
         </Section>
 
@@ -62,8 +62,8 @@ export function invitePage(props: InvitePageProps): Response {
         >
           <div class="grid">
             {props.invites.length ? props.invites.map((inv) => (
-              <div class="row" style="flex-direction:column;align-items:stretch">
-                <div style="display:flex;justify-content:space-between;align-items:center">
+              <div class="row mt-3" style="flex-direction:column;align-items:stretch">
+                <div class="flex items-center justify-between">
                   <div>
                     <strong>{inv.remark || "(无备注)"}</strong>
                     <div class="meta">
@@ -88,7 +88,7 @@ export function invitePage(props: InvitePageProps): Response {
                     <button class="button" type="button" data-delete-invite={inv.code}>删除</button>
                   </div>
                 </div>
-                <div id={`usage-${inv.code}`} class="hidden" style="margin-top:12px;padding-top:12px;border-top:1px solid var(--line)">
+                <div id={`usage-${inv.code}`} class="hidden mt-3 pt-3" style="border-top:1px solid var(--line)">
                   <div id={`usage-list-${inv.code}`} class="usage-loading">加载中...</div>
                 </div>
               </div>
@@ -186,7 +186,7 @@ function showInviteResult(data) {
     .then(function(r) { return r.json(); })
     .then(function(qr) {
       if (qr.qrcode_svg) {
-        qrDiv.innerHTML = '<div style="max-width:200px;margin:0 auto">' + qr.qrcode_svg + '</div>';
+        qrDiv.innerHTML = '<div class="mx-auto" style="max-width:200px">' + qr.qrcode_svg + '</div>';
       }
     })
     .catch(function() {});

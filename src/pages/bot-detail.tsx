@@ -132,7 +132,7 @@ export function botDetailPage(props: BotDetailProps): Response {
         >
           <div class="grid">
             {props.tasks.length ? props.tasks.map((task) => (
-              <div class={`row stripe-${task.enabled ? "ok" : "warn"}`} style="position:relative;overflow:hidden">
+              <div class={`row stripe-${task.enabled ? "ok" : "warn"} pl-1`} style="position:relative;overflow:hidden">
                 <div style="padding-left:4px">
                   <strong>{task.name}</strong>
                   <div class="meta">
@@ -156,11 +156,11 @@ export function botDetailPage(props: BotDetailProps): Response {
             )) : <EmptyState text="暂无定时任务。" />}
           </div>
 
-          <div class="inline" style="margin-top:12px">
+          <div class="inline mt-3">
             <button id="toggle-task-form" class="button" type="button">+ 新建任务</button>
           </div>
 
-          <div id="task-form-wrap" class="card hidden" style="margin-top:12px">
+          <div id="task-form-wrap" class="card hidden mt-3">
           <form id="task-form" class="stack">
             <strong>新建 / 编辑任务</strong>
             <input id="task-id" name="id" type="hidden" />
@@ -189,8 +189,8 @@ export function botDetailPage(props: BotDetailProps): Response {
               </div>
               <div id="schedule-interval" class="field full" style="display:none">
                 <label>执行间隔</label>
-                <div style="display:flex;gap:8px;align-items:center">
-                  <input type="number" id="interval-value" name="interval_value" value="30" min="1" style="width:80px" />
+                <div class="flex items-center gap-2">
+                  <input type="number" id="interval-value" name="interval_value" value="30" min="1" class="w-20" />
                   <select id="interval-unit" name="interval_unit">
                     <option value="minute">分钟</option>
                     <option value="hour">小时</option>
