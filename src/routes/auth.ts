@@ -38,9 +38,9 @@ export async function authMiddleware(c: Context<{ Bindings: Env }>, next: Next) 
 
 function isManagementPath(pathname: string): boolean {
   return (
-    pathname === "/login" ||
-    pathname === "/login/qr" ||
-    pathname === "/login/status" ||
+    pathname === "/bind" ||
+    pathname === "/bind/qr" ||
+    pathname === "/bind/status" ||
     pathname === "/admin" ||
     pathname.startsWith("/admin/") ||
     pathname.startsWith("/api/") ||

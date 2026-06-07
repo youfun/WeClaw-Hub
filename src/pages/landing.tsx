@@ -27,7 +27,7 @@ function Landing() {
           <nav class="topnav">
             <a href="/guide">使用说明</a>
             <a href="/admin">管理台</a>
-            <a href="/login">绑定账号</a>
+            <a href="/bind">绑定账号</a>
           </nav>
           <div class="hero-content">
             <p class="hero-eyebrow fade-up">WeClaw Hub</p>

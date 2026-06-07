@@ -1,5 +1,6 @@
-// Login routes module
-// Reference: .kiro/specs/hono-refactor-phase1/design.md
+// Bind routes module
+//
+// 微信账号绑定流程：扫码 -> 轮询状态 -> 保存凭证
 
 import { Hono } from "hono";
 import type { Env } from "../env.ts";
@@ -7,38 +8,38 @@ import { fetchQRCode, pollQRStatus } from "../ilink.ts";
 import { loginPage } from "../pages/login.tsx";
 import { renderQrSvg } from "../qr.ts";
 
-const LOGIN_ROUTE_LIMITS: Record<string, number> = {
-  "/login": 20,
-  "/login/qr": 20,
-  "/login/status": 120,
+const BIND_ROUTE_LIMITS: Record<string, number> = {
+  "/bind": 20,
+  "/bind/qr": 20,
+  "/bind/status": 120,
 };
 
-const LOGIN_WINDOW_MS = 60_000;
-const RATE_LIMIT_DO_NAME = "__weclaw_hub_login_rate_limit__";
+const BIND_WINDOW_MS = 60_000;
+const RATE_LIMIT_DO_NAME = "__weclaw_hub_bind_rate_limit__";
 
-export const loginRoutes = new Hono<{ Bindings: Env }>();
+export const bindRoutes = new Hono<{ Bindings: Env }>();
 
-// Rate limiting middleware for login routes
-loginRoutes.use("*", async (c, next) => {
+// Rate limiting middleware for bind routes
+bindRoutes.use("*", async (c, next) => {
   const pathname = new URL(c.req.url).pathname;
-  const limit = LOGIN_ROUTE_LIMITS[pathname];
+  const limit = BIND_ROUTE_LIMITS[pathname];
   
   if (limit) {
-    const rateLimited = await enforceLoginRateLimit(c, pathname, limit);
+    const rateLimited = await enforceBindRateLimit(c, pathname, limit);
     if (rateLimited) return rateLimited;
   }
   
   await next();
 });
 
-// GET /login - Return admin page
-loginRoutes.get("/login", (c) => {
+// GET /bind - Return bind page
+bindRoutes.get("/bind", (c) => {
   const origin = new URL(c.req.url).origin;
   return loginPage(origin);
 });
 
-// GET /login/qr - Fetch QR code
-loginRoutes.get("/login/qr", async (c) => {
+// GET /bind/qr - Fetch QR code
+bindRoutes.get("/bind/qr", async (c) => {
   try {
     const qr = await fetchQRCode();
     return c.json({
@@ -46,13 +47,13 @@ loginRoutes.get("/login/qr", async (c) => {
       qrcode_svg: renderQrSvg(qr.qrcode_img_content),
     });
   } catch (err) {
-    console.error("[login/qr] fetch failed", err);
+    console.error("[bind/qr] fetch failed", err);
     return c.json({ error: "upstream_error" }, 502);
   }
 });
 
-// GET /login/status - Poll login status
-loginRoutes.get("/login/status", async (c) => {
+// GET /bind/status - Poll bind status
+bindRoutes.get("/bind/status", async (c) => {
   const qrcode = c.req.query("qrcode");
   if (!qrcode) {
     return c.json({ error: "missing qrcode param" }, 400);
@@ -77,20 +78,20 @@ loginRoutes.get("/login/status", async (c) => {
       }));
 
       if (!response.ok) {
-        console.error("[login/status] failed to persist credentials", response.status);
-        return c.json({ error: "login_persist_failed" }, 502);
+        console.error("[bind/status] failed to persist credentials", response.status);
+        return c.json({ error: "bind_persist_failed" }, 502);
       }
     }
 
     return c.json(status);
   } catch (err) {
-    console.error("[login/status] poll failed", err);
+    console.error("[bind/status] poll failed", err);
     return c.json({ error: "upstream_error" }, 502);
   }
 });
 
 // Helper function to enforce rate limiting
-async function enforceLoginRateLimit(
+async function enforceBindRateLimit(
   c: { env: Env; req: { raw: Request } },
   pathname: string,
   limit: number,
@@ -102,7 +103,7 @@ async function enforceLoginRateLimit(
     body: JSON.stringify({
       key: `${pathname}:${client}`,
       limit,
-      window_ms: LOGIN_WINDOW_MS,
+      window_ms: BIND_WINDOW_MS,
     }),
   }));
 
@@ -124,7 +125,7 @@ async function enforceLoginRateLimit(
   return new Response(
     JSON.stringify({
       error: "rate_limited",
-      retry_after_ms: Math.max(Number(payload.retry_after_ms ?? LOGIN_WINDOW_MS), 0),
+      retry_after_ms: Math.max(Number(payload.retry_after_ms ?? BIND_WINDOW_MS), 0),
     }),
     {
       status: 429,

@@ -14,7 +14,7 @@ import { Hono } from "hono";
 import type { Env } from "./env.ts";
 import { publicRoutes } from "./routes/public.ts";
 import { authMiddleware } from "./routes/auth.ts";
-import { loginRoutes } from "./routes/login.ts";
+import { bindRoutes } from "./routes/bind.ts";
 import { botRoutes } from "./routes/bots.ts";
 import { providerRoutes } from "./routes/providers.ts";
 import { modelRoutes } from "./routes/models.ts";
@@ -74,7 +74,7 @@ app.use("*", authMiddleware);
 
 // --- Authenticated routes ---
 
-app.route("/", loginRoutes);
+app.route("/", bindRoutes);
 app.route("/", botRoutes);
 app.route("/", providerRoutes);
 app.route("/", modelRoutes);
