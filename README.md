@@ -5,7 +5,7 @@
 | 方式 | 适用场景 | 命令 |
 |------|---------|------|
 | ☁️ **Cloudflare Workers** | 零成本、免运维 | `wrangler deploy` |
-| 🐳 **Docker** | VPS/NAS 自托管 | `docker compose up -d` |
+| 🐳 **Docker** | VPS/NAS 自托管 | `docker run -d -p 8787:8787 -e AUTH_TOKEN=xxx -v ./data:/app/data ghcr.io/youfun/weclaw-hub:latest` |
 | 🥟 **Bun 直接运行** | 开发调试、快速尝鲜 | `bun run src/local/server.ts` |
 
 
