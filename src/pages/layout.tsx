@@ -136,6 +136,11 @@ body {
 }
 
 a { color: inherit; }
+a:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
 
 /* ── Shell ── */
 .shell {
@@ -210,6 +215,13 @@ button {
 .button:hover,
 button:hover {
   background: rgba(182, 84, 45, 0.06);
+}
+
+.topnav a:focus-visible,
+.button:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
 }
 
 .nav-active {
@@ -528,6 +540,13 @@ select:focus {
   outline: none;
   border-color: rgba(182, 84, 45, 0.40);
   box-shadow: 0 0 0 3px rgba(182, 84, 45, 0.08);
+}
+
+input:not([type="checkbox"]):not([type="radio"]):focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
 }
 
 textarea { min-height: 110px; resize: vertical; }

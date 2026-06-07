@@ -1,4 +1,4 @@
-// Command router — parse incoming text and return dispatch action
+// Command router - parse incoming text and return dispatch action
 // Reference: ref/weclaw/messaging/handler.go
 
 export type RouterAction =
@@ -16,23 +16,23 @@ export type RouterAction =
 
 export const HELP_TEXT = [
   "支持的命令：",
-  "/conv — 查看对话列表",
-  "/conv new [标题] — 新建对话",
-  "/conv <序号> — 切换对话",
-  "/conv rename <序号> <标题> — 重命名对话",
-  "/conv delete <序号> — 删除对话",
-  "/compress — 压缩当前对话历史",
-  "/compress status — 查看压缩状态",
-  "/claude [消息] — 与 Claude 对话",
-  "/model — 查看/切换模型",
-  "/mode [family|manual] — 切换自动/手动选模",
-  "/memory — 查看当前记忆",
-  "/tasks — 查看定时任务",
-  "/draw [提示词] — AI 生图",
-  "/status — 查看 Bot 状态",
-  "/clear — 清空对话历史",
-  "/help — 显示帮助",
-  "直接输入文字 — 与 AI 对话",
+  "/conv - 查看对话列表",
+  "/conv new [标题] - 新建对话",
+  "/conv <序号> - 切换对话",
+  "/conv rename <序号> <标题> - 重命名对话",
+  "/conv delete <序号> - 删除对话",
+  "/compress - 压缩当前对话历史",
+  "/compress status - 查看压缩状态",
+  "/claude [消息] - 与 Claude 对话",
+  "/model - 查看/切换模型",
+  "/mode [family|manual] - 切换自动/手动选模",
+  "/memory - 查看当前记忆",
+  "/tasks - 查看定时任务",
+  "/draw [提示词] - AI 生图",
+  "/status - 查看 Bot 状态",
+  "/clear - 清空对话历史",
+  "/help - 显示帮助",
+  "直接输入文字 - 与 AI 对话",
 ].join("\n");
 
 /** Parse incoming text into a router action. Synchronous and side-effect-free. */

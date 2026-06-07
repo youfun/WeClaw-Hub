@@ -15,7 +15,7 @@ function Landing() {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>WeClaw Hub — 微信消息中樞</title>
+        <title>WeClaw Hub - 微信消息中樞</title>
         <meta name="description" content="三种方式部署：Cloudflare Workers 零成本、Docker 自托管、Bun 直接运行。聚合通知、AI 对话、多账号管理，一站式微信消息网关。" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
@@ -164,13 +164,26 @@ function Landing() {
 const styles = `
 :root {
   --bg: #f4efe6;
-  --brand: #b6542d;
-  --brand-deep: #7f3014;
+  --bg-accent: #efe0cb;
+  --panel: rgba(255, 252, 247, 0.82);
+  --panel-strong: #fffaf2;
+  --surface: #fffaf2;
   --ink: #1f1a17;
   --ink-muted: #6f6258;
-  --surface: #fffaf2;
-  --line: rgba(74, 57, 44, 0.1);
-  --line-soft: rgba(74, 57, 44, 0.06);
+  --line: rgba(74, 57, 44, 0.12);
+  --line-soft: rgba(74, 57, 44, 0.07);
+  --brand: #b6542d;
+  --brand-deep: #7f3014;
+  --wechat: #07C160;
+  --cf: #F38020;
+  --amber: #d97706;
+  --terminal: #10b981;
+  --ok: #2f6a48;
+  --warn-color: #8a5a14;
+  --red: #dc2626;
+  --sky: #0ea5e9;
+  --purple: #7c3aed;
+  --shadow: 0 16px 40px rgba(61, 39, 22, 0.08);
 }
 
 *, *::before, *::after { box-sizing: border-box; }

@@ -215,9 +215,9 @@ export function adminPage(props: AdminPageProps): Response {
                     <label>角色</label>
                     <select name="role">
                       <option value="">未设置</option>
-                      <option value="daily">日常 — 聊天、简单问答</option>
-                      <option value="complex">复杂推理 — 编程、分析</option>
-                      <option value="extraction">记忆提取 — 推荐轻量模型</option>
+                      <option value="daily">日常 - 聊天、简单问答</option>
+                      <option value="complex">复杂推理 - 编程、分析</option>
+                      <option value="extraction">记忆提取 - 推荐轻量模型</option>
                     </select>
                   </div>
                 </div>
@@ -244,9 +244,9 @@ export function adminPage(props: AdminPageProps): Response {
                 <label>角色</label>
                 <select name="role">
                   <option value="">未设置</option>
-                  <option value="daily">日常 — 聊天、简单问答</option>
-                  <option value="complex">复杂推理 — 编程、分析</option>
-                  <option value="extraction">记忆提取 — 推荐轻量模型</option>
+                  <option value="daily">日常 - 聊天、简单问答</option>
+                  <option value="complex">复杂推理 - 编程、分析</option>
+                  <option value="extraction">记忆提取 - 推荐轻量模型</option>
                 </select>
               </div>
             </div>

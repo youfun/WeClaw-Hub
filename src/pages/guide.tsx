@@ -47,8 +47,8 @@ export function guidePage(): Response {
             <CommandRow cmd="/model" desc="列出所有可用模型，显示当前激活的模型" />
             <CommandRow cmd="/model [名称或编号]" desc="手动切换到指定模型" example="/model 2  或  /model Sonnet" />
             <CommandRow cmd="/mode" desc="查看当前模式（智能选择 / 手动指定）" />
-            <CommandRow cmd="/mode family" desc="切换到智能选择 — 根据问题复杂度自动匹配模型（推荐）" />
-            <CommandRow cmd="/mode manual" desc="切换到手动指定 — 始终使用当前选中的模型" />
+            <CommandRow cmd="/mode family" desc="切换到智能选择 - 根据问题复杂度自动匹配模型（推荐）" />
+            <CommandRow cmd="/mode manual" desc="切换到手动指定 - 始终使用当前选中的模型" />
           </div>
           <div class="callout">
             <strong>智能选择说明</strong>
