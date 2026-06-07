@@ -1,0 +1,47 @@
+name: Release Binary
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build binary
+        run: |
+          mkdir -p dist
+          bun build src/local/server.ts --compile --outfile dist/weclaw-hub
+
+      - name: Package
+        run: |
+          tar -czf weclaw-hub-${{ github.ref_name }}.tar.gz -C dist weclaw-hub
+
+      - name: Generate checksums
+        run: |
+          sha256sum weclaw-hub-${{ github.ref_name }}.tar.gz > weclaw-hub-${{ github.ref_name }}.tar.gz.sha256
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            weclaw-hub-${{ github.ref_name }}.tar.gz
+            weclaw-hub-${{ github.ref_name }}.tar.gz.sha256
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
