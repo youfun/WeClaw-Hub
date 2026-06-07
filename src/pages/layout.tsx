@@ -480,6 +480,7 @@ button.primary:hover {
 
 /* ── Layout helpers ── */
 .stack { display: grid; gap: 8px; }
+.card.stack > p { margin: 0; }
 .inline { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 
 .code {

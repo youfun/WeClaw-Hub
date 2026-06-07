@@ -5,11 +5,11 @@ import { EmptyState, Section, StatusBadge, renderPage } from "./layout.tsx";
 export function loginPage(origin: string): Response {
   return renderPage({
     title: "微信消息中枢",
-    subtitle: "扫描二维码登录，管理机器人、模型、定时任务与 Webhook 通知。",
+    subtitle: "扫描二维码绑定账号，管理机器人、模型、定时任务与 Webhook 通知。",
     activeNav: "login",
     children: (
       <>
-        <Section title="扫码登录" description="页面会自动请求二维码并轮询登录状态。" dot="wechat">
+        <Section title="扫码绑定账号" description="页面会自动请求二维码并轮询绑定状态。" dot="wechat">
           <div class="cards two">
             <div class="card stack">
               <div id="qr-box" class="qr-box">
@@ -21,25 +21,92 @@ export function loginPage(origin: string): Response {
               </div>
             </div>
             <div class="card stack">
-              <strong>登录流程</strong>
+              <strong>绑定流程</strong>
               <p class="muted">1. 使用微信扫描下方二维码</p>
-              <p class="muted">2. 在手机端确认登录</p>
+              <p class="muted">2. 在手机端确认授权</p>
               <p class="muted">3. 确认授权后自动完成机器人绑定</p>
-              <div id="login-status">
+              <div id="bind-status">
                 <StatusBadge status="warn" text="等待扫码" />
               </div>
             </div>
           </div>
         </Section>
         <script dangerouslySetInnerHTML={{
-          __html: loginScript,
+          __html: bindScript,
         }} />
       </>
     ),
   });
 }
 
-const loginScript = `
+const bindScript = `
+const qrBox = document.getElementById("qr-box");
+const statusEl = document.getElementById("bind-status");
+const refreshBtn = document.getElementById("refresh-qr");
+let timer = 0;
+let currentRedirectHost = "";
+
+function setStatus(text, kind) {
+  if (!statusEl) return;
+  statusEl.innerHTML = '<span class="badge ' + (kind || "warn") + (kind === "ok" ? " badge-pulse" : "") + '">' + (kind === "ok" ? '<span class="badge-dot"></span>' : '') + text + '</span>';
+}
+
+async function poll(qrcode) {
+  window.clearTimeout(timer);
+  let url = "/login/status?qrcode=" + encodeURIComponent(qrcode);
+  if (currentRedirectHost) url += "&redirect_host=" + encodeURIComponent(currentRedirectHost);
+  const res = await fetch(url);
+  const data = await res.json();
+  if (!res.ok) {
+    setStatus("状态查询失败", "warn");
+    timer = window.setTimeout(() => poll(qrcode), 2000);
+    return;
+  }
+  if (data.status === "confirmed") {
+    setStatus("绑定成功，正在跳转", "ok");
+    window.setTimeout(() => window.location.assign("/admin"), 600);
+    return;
+  }
+  if (data.status === "scaned_but_redirect" && data.redirect_host) {
+    currentRedirectHost = data.redirect_host;
+    setStatus("已扫码，切换服务节点…", "ok");
+    timer = window.setTimeout(() => poll(qrcode), 500);
+    return;
+  }
+  const label = data.status === "scaned" ? "已扫码，等待确认" : data.status === "expired" ? "二维码已过期，请刷新" : "等待扫码";
+  setStatus(label, data.status === "expired" ? "warn" : "ok");
+  if (data.status === "expired") {
+    if (!qrBox.querySelector(".qr-expired-overlay")) {
+      const overlay = document.createElement("div");
+      overlay.className = "qr-expired-overlay";
+      overlay.innerHTML = "<span>二维码已过期</span><span style='font-size: 12px; opacity: 0.8;'>点击此处刷新</span>";
+      overlay.addEventListener("click", loadQr);
+      qrBox.appendChild(overlay);
+    }
+  } else {
+    timer = window.setTimeout(() => poll(qrcode), 1500);
+  }
+}
+
+async function loadQr() {
+  window.clearTimeout(timer);
+  currentRedirectHost = "";
+  setStatus("正在获取二维码", "warn");
+  const res = await fetch("/login/qr");
+  const data = await res.json();
+  if (!res.ok) {
+    qrBox.innerHTML = "<p class=\"muted\">二维码获取失败</p>";
+    setStatus("二维码获取失败", "warn");
+    return;
+  }
+  qrBox.innerHTML = data.qrcode_svg || "<p class=\"muted\">二维码为空</p>";
+  setStatus("二维码已生成", "ok");
+  poll(data.qrcode);
+}
+
+refreshBtn?.addEventListener("click", loadQr);
+loadQr();
+`;
 const qrBox = document.getElementById("qr-box");
 const statusEl = document.getElementById("login-status");
 const refreshBtn = document.getElementById("refresh-qr");
@@ -63,7 +130,7 @@ async function poll(qrcode) {
     return;
   }
   if (data.status === "confirmed") {
-    setStatus("登录成功，正在跳转", "ok");
+    setStatus("绑定成功，正在跳转", "ok");
     window.setTimeout(() => window.location.assign("/admin"), 600);
     return;
   }
