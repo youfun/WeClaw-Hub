@@ -62,7 +62,7 @@ Authorization: Bearer 你的AUTH_TOKEN
 
 > [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/youfun/weclaw-hub)
 >
-> 一键部署后仍需 `wrangler secret put AUTH_TOKEN` 设置管理台密钥。
+> 一键部署后需设置 `AUTH_TOKEN`：可在 Cloudflare Workers 控制台 → Settings → Variables → Secrets 中添加，或使用 `wrangler secret put AUTH_TOKEN`。
 
 也可手动部署：
 
@@ -77,6 +77,8 @@ bunx wrangler kv namespace create CONTACTS
 # 3. 把 KV id 填入 wrangler.toml
 
 # 4. 设置管理台密钥（必须）
+# 方式一：Cloudflare 控制台 → Settings → Variables → Secrets → Add
+# 方式二：命令行
 bunx wrangler secret put AUTH_TOKEN
 
 # 5. 部署
