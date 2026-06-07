@@ -78,7 +78,7 @@ export function adminPage(props: AdminPageProps): Response {
             {props.providers.length ? props.providers.map((provider) => (
               <div class="row">
                 <div>
-                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                  <div class="flex items-center gap-2 mb-2">
                     <strong style="margin-bottom:0">{provider.name}</strong>
                     <Chip
                       color={provider.type === "anthropic" ? "purple" : "blue"}
@@ -169,7 +169,7 @@ export function adminPage(props: AdminPageProps): Response {
             {props.models.length ? props.models.map((model) => (
               <div class="row">
                 <div>
-                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                  <div class="flex items-center gap-2 mb-2">
                     <strong style="margin-bottom:0">{model.displayName}</strong>
                     {model.role ? (
                       <Chip
@@ -293,10 +293,10 @@ export function adminPage(props: AdminPageProps): Response {
               const source = String(w.source || "generic");
               return (
                 <div class="row">
-                  <div style="display:flex;align-items:flex-start;gap:8px">
-                    <span style="font-size:18px;margin-top:-1px;color:var(--ink-muted);opacity:0.5" aria-hidden="true">→</span>
+                  <div class="flex items-center gap-2">
+                    <span class="text-lg text-muted" style="margin-top:-1px;opacity:0.5" aria-hidden="true">→</span>
                     <div>
-                      <strong style="margin-bottom:4px">{String(w.name || w.path || "Webhook")}</strong>
+                      <strong class="mb-1">{String(w.name || w.path || "Webhook")}</strong>
                       <div class="meta">
                         <Chip
                           color={source === "github" ? "brand" : source === "tapd" ? "amber" : "blue"}
@@ -314,7 +314,7 @@ export function adminPage(props: AdminPageProps): Response {
             }) : <EmptyState text="暂无 Webhook。" />}
           </div>
 
-          <div class="inline" style="margin-top:12px">
+          <div class="inline mt-3">
             <button id="toggle-webhook-form" class="button" type="button">+ 添加 Webhook</button>
           </div>
 
@@ -341,12 +341,12 @@ export function adminPage(props: AdminPageProps): Response {
                   </div>
                   <div class="field full">
                     <label>目标机器人</label>
-                    <div id="webhook-bot-ids" class="stack" style="gap:6px">
+                    <div id="webhook-bot-ids" class="stack gap-2">
                       {props.bots.length ? props.bots.map((bot) => (
-                        <label class="row" style="padding:8px 12px;align-items:center;flex-direction:row">
-                          <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                        <label class="row">
+                          <span class="flex items-center gap-2 flex-wrap">
                             <strong style="margin:0;display:inline-block">{bot.bot_id}</strong>
-                            {bot.remark ? <span class="meta-chip" style="font-size:11px;padding:1px 6px">{bot.remark}</span> : null}
+                            {bot.remark ? <span class="meta-chip text-xs" style="padding:1px 6px">{bot.remark}</span> : null}
                           </span>
                           <input type="checkbox" name="bot_id" value={bot.bot_id} />
                         </label>
@@ -356,13 +356,13 @@ export function adminPage(props: AdminPageProps): Response {
                   <div class="field full">
                     <label>消息模板（可选）</label>
                     <input name="template" placeholder="💰 新订单 ${data.object.amount_total}" />
-                    <span class="muted" style="font-size:12px;margin-top:4px">用 <code>$&#123;字段路径&#125;</code> 提取 JSON 字段，支持算术如 <code>$&#123;price * qty&#125;</code></span>
+                    <span class="muted text-sm mt-1">用 <code>$&#123;字段路径&#125;</code> 提取 JSON 字段，支持算术如 <code>$&#123;price * qty&#125;</code></span>
                   </div>
                   <div class="field full">
-                    <div class="callout" style="margin-top: 8px; border-color: var(--line);">
+                    <div class="callout mt-2">
                       <strong>💡 Webhook 数据转发规则说明</strong>
-                      <p style="font-size:12px;margin:4px 0 0;line-height:1.5">根据选择的<b>消息来源</b>，系统会自动解析并推送不同的内容：</p>
-                      <ul style="font-size:12px;color:var(--ink-muted);margin:6px 0 0;padding-left:20px;line-height:1.6">
+                      <p class="text-sm mt-1">根据选择的<b>消息来源</b>，系统会自动解析并推送不同的内容：</p>
+                      <ul class="text-sm text-muted mt-1" style="padding-left:20px;line-height:1.6">
                         <li><b>GitHub</b>: 自动解析并格式化推送 <code>push</code>, <code>pull_request</code>, <code>issues</code> 等事件（包含提交数、分支、标题等）。</li>
                         <li><b>TAPD</b>: 自动解析并翻译推送 <code>需求</code>, <code>缺陷</code>, <code>任务</code> 等创建与状态流转事件。</li>
                         <li><b>通用/自定义</b>:
@@ -743,9 +743,9 @@ document.querySelectorAll("[data-load-models]").forEach((button) => {
       const complexCount = roleCounts.complex || 0;
       const extractionCount = roleCounts.extraction || 0;
       rolesEl.innerHTML = [
-        '<span style="color:' + (dailyCount ? 'var(--green)' : 'var(--ink-muted)') + '">日常: ' + dailyCount + '</span>',
-        '<span style="color:' + (complexCount ? 'var(--brand)' : 'var(--ink-muted)') + '">复杂: ' + complexCount + '</span>',
-        '<span style="color:' + (extractionCount ? '#7c3aed' : 'var(--ink-muted)') + '">记忆提取: ' + extractionCount + (extractionCount ? '' : ' ⚠️ 建议配置轻量模型') + '</span>',
+        '<span class="' + (dailyCount ? 'text-brand' : 'text-muted') + '">日常: ' + dailyCount + '</span>',
+        '<span class="' + (complexCount ? 'text-brand' : 'text-muted') + '">复杂: ' + complexCount + '</span>',
+        '<span class="' + (extractionCount ? 'text-purple' : 'text-muted') + '">记忆提取: ' + extractionCount + (extractionCount ? '' : ' ⚠️ 建议配置轻量模型') + '</span>',
       ].join(' · ');
 
       // Smart role guess
@@ -764,7 +764,7 @@ document.querySelectorAll("[data-load-models]").forEach((button) => {
           const existing = adminData.models.find((m) => m.model === model.id && m.providerId === activeProviderId);
           const roleText = existing?.role === 'complex' ? '复杂' : existing?.role === 'extraction' ? '记忆提取' : existing?.role === 'daily' ? '日常' : '';
           const roleBadge = roleText ? '<span class="text-xs text-brand" style="margin-left:var(--space-1)">' + roleText + '</span>' : '';
-          return '<label class="row items-center gap-2" style="opacity:0.6">' +
+          return '<label class="row items-center gap-2 opacity-50">' +
             '<input type="checkbox" disabled>' +
             '<span class="flex-1 min-w-0"><strong>' + model.name + '</strong><span class="meta"><span class="code-inline">' + model.id + '</span>' + roleBadge + '</span></span>' +
             '<span class="text-xs text-muted">已导入</span>' +

@@ -173,7 +173,7 @@ function CommandRow({ cmd, desc, example }: { cmd: string; desc: string; example
         <span class="code-inline text-base">{cmd}</span>
         {example ? <p class="cmd-example">例：{example}</p> : null}
       </div>
-      <div class="text-muted text-base" style="max-width:55%">{desc}</div>
+      <div class="text-muted text-base w-55">{desc}</div>
     </div>
   );
 }

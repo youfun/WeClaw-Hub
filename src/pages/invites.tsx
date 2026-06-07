@@ -62,7 +62,7 @@ export function invitePage(props: InvitePageProps): Response {
         >
           <div class="grid">
             {props.invites.length ? props.invites.map((inv) => (
-              <div class="row mt-3" style="flex-direction:column;align-items:stretch">
+              <div class="row flex-col" style="flex-direction:column;align-items:stretch">
                 <div class="flex items-center justify-between">
                   <div>
                     <strong>{inv.remark || "(无备注)"}</strong>
@@ -88,7 +88,7 @@ export function invitePage(props: InvitePageProps): Response {
                     <button class="button" type="button" data-delete-invite={inv.code}>删除</button>
                   </div>
                 </div>
-                <div id={`usage-${inv.code}`} class="hidden mt-3 pt-3" style="border-top:1px solid var(--line)">
+                <div id={`usage-${inv.code}`} class="hidden mt-3 pt-3 border-t">
                   <div id={`usage-list-${inv.code}`} class="usage-loading">加载中...</div>
                 </div>
               </div>

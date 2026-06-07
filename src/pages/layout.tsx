@@ -718,6 +718,12 @@ select {
 .gap-2 { gap: var(--space-2); }
 .items-center { align-items: center; }
 .justify-between { justify-content: space-between; }
+.flex-col { flex-direction: column; }
+.w-50 { width: 50%; }
+.w-55 { width: 55%; }
+.border-t { border-top: 1px solid var(--line); }
+.opacity-50 { opacity: 0.5; }
+.opacity-60 { opacity: 0.6; }
 
 /* ── Responsive ── */
 @media (max-width: 860px) {
