@@ -76,18 +76,14 @@ bunx wrangler kv namespace create CONTACTS
 
 # 3. 把 KV id 填入 wrangler.toml
 
-# 4. 设置密钥（必须）
+# 4. 设置管理台密钥（必须）
 bunx wrangler secret put AUTH_TOKEN
 
-# 5. 设置 AI 密钥（至少选一个）
-bunx wrangler secret put ANTHROPIC_API_KEY
-# 或 OpenAI 兼容：
-bunx wrangler secret put LLM_API_KEY
-bunx wrangler secret put LLM_BASE_URL
-
-# 6. 部署
+# 5. 部署
 bun run deploy
 ```
+
+> **AI 模型配置**：部署后登录管理台 `/admin` → 供应商 → 添加 Provider，填写 API Key 和接口地址。支持 Anthropic 和 OpenAI 兼容协议，添加后点「获取模型列表」自动拉取可用模型。
 
 > [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/youfun/weclaw-hub)
 >

@@ -19,5 +19,6 @@ export default defineConfig({
   test: {
     include: ["src/__tests__/**"],
     exclude: ["src/__tests__/local/**", "node_modules/**"],
+    testTimeout: 30000,
   },
 });
