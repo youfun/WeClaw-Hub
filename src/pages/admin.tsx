@@ -152,8 +152,9 @@ export function adminPage(props: AdminPageProps): Response {
 
           <div id="model-import" class="card stack hidden">
             <strong id="model-import-title">从供应商导入模型</strong>
+            <div id="model-import-roles" class="meta" style="margin-bottom:12px;font-size:13px;line-height:1.8"></div>
             <div id="model-import-list" class="stack"></div>
-            <div class="inline">
+            <div class="inline" style="margin-top:6px">
               <button id="import-selected-models" class="primary" type="button">导入所选模型</button>
             </div>
           </div>
@@ -730,13 +731,65 @@ document.querySelectorAll("[data-load-models]").forEach((button) => {
       const imported = new Set(adminData.models.filter((item) => item.providerId === activeProviderId).map((item) => item.model));
       const wrap = document.getElementById("model-import");
       const title = document.getElementById("model-import-title");
+      const rolesEl = document.getElementById("model-import-roles");
       const list = document.getElementById("model-import-list");
       if (!wrap || !title || !list) return;
       title.textContent = "从 " + (provider?.name || activeProviderId) + " 导入模型";
+
+      // Role guidance panel
+      const roleCounts = {};
+      adminData.models.forEach((m) => { if (m.role) roleCounts[m.role] = (roleCounts[m.role] || 0) + 1; });
+      const dailyCount = roleCounts.daily || 0;
+      const complexCount = roleCounts.complex || 0;
+      const extractionCount = roleCounts.extraction || 0;
+      rolesEl.innerHTML = [
+        '<span style="color:' + (dailyCount ? 'var(--green)' : 'var(--ink-muted)') + '">日常: ' + dailyCount + '</span>',
+        '<span style="color:' + (complexCount ? 'var(--brand)' : 'var(--ink-muted)') + '">复杂: ' + complexCount + '</span>',
+        '<span style="color:' + (extractionCount ? '#7c3aed' : 'var(--ink-muted)') + '">记忆提取: ' + extractionCount + (extractionCount ? '' : ' ⚠️ 建议配置轻量模型') + '</span>',
+      ].join(' · ');
+
+      // Smart role guess
+      function guessRole(name) {
+        const lower = name.toLowerCase();
+        if (/haiku|flash|mini|lite/.test(lower)) return 'daily';
+        if (/sonnet|pro|opus|router/.test(lower)) return 'complex';
+        return null;
+      }
+      function isTextModel(name) {
+        return !/tts|asr|audio|realtime|image|draw/.test(name.toLowerCase());
+      }
+
       list.innerHTML = (res.models || []).map((model) => {
-        const checked = imported.has(model.id);
-        return '<label class="row"><span><strong>' + model.name + '</strong><span class="meta"><span class="code-inline">' + model.id + '</span></span></span><input type="checkbox" data-import-model="' + model.id + '" data-import-name="' + model.name + '" ' + (checked ? 'disabled' : '') + '></label>';
-      }).join("") || '<p class="muted">未找到可导入的模型</p>';
+        if (imported.has(model.id)) {
+          const existing = adminData.models.find((m) => m.model === model.id && m.providerId === activeProviderId);
+          const roleText = existing?.role === 'complex' ? '复杂' : existing?.role === 'extraction' ? '记忆提取' : existing?.role === 'daily' ? '日常' : '';
+          const roleBadge = roleText ? '<span style="font-size:11px;color:var(--brand);margin-left:4px">' + roleText + '</span>' : '';
+          return '<label class="row" style="align-items:center;gap:8px;opacity:0.6">' +
+            '<input type="checkbox" disabled>' +
+            '<span style="flex:1;min-width:0"><strong>' + model.name + '</strong><span class="meta"><span class="code-inline">' + model.id + '</span>' + roleBadge + '</span></span>' +
+            '<span style="font-size:11px;color:var(--ink-muted)">已导入</span>' +
+          '</label>';
+        }
+        const guessedRole = guessRole(model.name);
+        const isText = isTextModel(model.name);
+        const conflict = guessedRole ? adminData.models.find((m) => m.role === guessedRole && m.model !== model.id) : null;
+        const warnHtml = conflict
+          ? '<span style="font-size:11px;color:#b6542d;margin-left:4px">将替换 ' + conflict.displayName + '</span>'
+          : '';
+        return '<label class="row" style="align-items:center;gap:8px">' +
+          '<input type="checkbox" data-import-model="' + model.id + '" data-import-name="' + model.name + '" ' + (isText ? 'checked' : '') + '>' +
+          '<span style="flex:1;min-width:0"><strong>' + model.name + '</strong><span class="meta"><span class="code-inline">' + model.id + '</span></span></span>' +
+          '<span style="display:inline-flex;align-items:center;gap:6px">' +
+            '<select data-import-role="' + model.id + '" style="width:auto;font-size:12px;padding:4px 8px">' +
+              '<option value="">--</option>' +
+              '<option value="daily"' + (guessedRole === 'daily' ? ' selected' : '') + '>日常</option>' +
+              '<option value="complex"' + (guessedRole === 'complex' ? ' selected' : '') + '>复杂</option>' +
+              '<option value="extraction">记忆提取</option>' +
+            '</select>' +
+            warnHtml +
+          '</span>' +
+        '</label>';
+      }).join('') || '<p class="muted">未找到可导入的模型</p>';
       wrap.classList.remove("hidden");
     });
   });
@@ -745,13 +798,18 @@ document.querySelectorAll("[data-load-models]").forEach((button) => {
 document.getElementById("import-selected-models")?.addEventListener("click", async (event) => {
   if (!activeProviderId) return;
   const button = event.currentTarget;
-  const selected = Array.from(document.querySelectorAll("[data-import-model]:checked")).map((input) => ({
-    model: input.dataset.importModel,
-    displayName: input.dataset.importName,
-  }));
+  const selected = Array.from(document.querySelectorAll("[data-import-model]:checked")).map((input) => {
+    const roleSel = document.querySelector('[data-import-role="' + input.dataset.importModel + '"]');
+    return {
+      providerId: activeProviderId,
+      model: input.dataset.importModel,
+      displayName: input.dataset.importName,
+      role: roleSel?.value || null,
+    };
+  });
   if (!selected.length) return;
   await wrapSubmit(button, "导入中...", async () => {
-    await api("POST", "/api/models/import", { providerId: activeProviderId, models: selected });
+    await api("POST", "/api/models/batch", { models: selected });
     location.reload();
   });
 });
