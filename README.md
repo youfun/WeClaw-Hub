@@ -129,7 +129,17 @@ LLM_MODEL=step-router-v1 docker compose up -d
 **GitHub Container Registry**：
 
 ```bash
+# latest（main 分支或正式 release）
 docker pull ghcr.io/youfun/weclaw-hub:latest
+
+# dev 分支
+# docker pull ghcr.io/youfun/weclaw-hub:dev
+
+# 指定版本
+# docker pull ghcr.io/youfun/weclaw-hub:0.4.0
+```
+
+```bash
 docker run -d -p 8787:8787 -e AUTH_TOKEN=xxx -v ./data:/app/data ghcr.io/youfun/weclaw-hub:latest
 ```
 
@@ -181,7 +191,7 @@ bun run dev          # 仅启动 wrangler dev，不自动恢复
 | 变量 | 说明 |
 |------|------|
 | `SYSTEM_PROMPT` | 自定义系统提示词 |
-| `WECLAW_HUB_VERSION` | 版本标识（Docker 版自动设为 `0.3.0-local`） |
+| `WECLAW_HUB_VERSION` | 版本标识（Docker 版自动设为 `0.4.0-local`） |
 
 ## 使用
 
