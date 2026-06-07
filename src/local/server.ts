@@ -31,7 +31,7 @@ function buildEnv(db: Database): Env {
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
     ANTHROPIC_BASE_URL: process.env.ANTHROPIC_BASE_URL,
     SYSTEM_PROMPT: process.env.SYSTEM_PROMPT ?? "你是一个有用的AI助手。",
-    WECLAW_HUB_VERSION: process.env.WECLAW_HUB_VERSION ?? "0.3.0-local",
+    WECLAW_HUB_VERSION: process.env.WECLAW_HUB_VERSION ?? "0.4.0-local",
     LLM_BASE_URL: process.env.LLM_BASE_URL,
     LLM_MODEL: process.env.LLM_MODEL,
     LLM_API_KEY: process.env.LLM_API_KEY,

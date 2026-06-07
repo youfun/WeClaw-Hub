@@ -233,7 +233,7 @@ app.get("/admin", async (c) => {
     c.env.BACKENDS.get("llm:image_model"),
   ]);
   const origin = new URL(c.req.url).origin;
-  return adminPage({ bots, providers, models, webhooks, imageProviderId, imageModel, origin });
+  return adminPage({ bots, providers, models, webhooks, imageProviderId, imageModel, origin, version: c.env.WECLAW_HUB_VERSION ?? "0.4.0" });
 });
 
 app.get("/admin/invites", async (c) => {

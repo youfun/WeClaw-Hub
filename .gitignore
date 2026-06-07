@@ -52,3 +52,4 @@ src/**/*.js
 # local server / docker data
 data/
 test-data-*/
+*.png

@@ -752,6 +752,24 @@ select {
 .table th { text-align: left; }
 .table td { text-align: left; }
 
+/* ── Admin Footer ── */
+.admin-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+.admin-footer a {
+  color: var(--brand);
+  text-decoration: none;
+}
+.admin-footer a:hover {
+  text-decoration: underline;
+}
+
 /* ── Responsive ── */
 @media (max-width: 860px) {
   .hero,

@@ -19,6 +19,7 @@ type AdminPageProps = {
   imageProviderId: string | null;
   imageModel: string | null;
   origin: string;
+  version: string;
 };
 
 export function adminPage(props: AdminPageProps): Response {
@@ -29,6 +30,7 @@ export function adminPage(props: AdminPageProps): Response {
     botIds: props.bots.map((b) => b.bot_id),
     imageProviderId: props.imageProviderId,
     imageModel: props.imageModel,
+    version: props.version,
   });
 
   return renderPage({
@@ -385,6 +387,10 @@ export function adminPage(props: AdminPageProps): Response {
         </Section>
 
         <script dangerouslySetInnerHTML={{ __html: buildAdminScript(payload) }} />
+        <footer class="admin-footer">
+          <span>WeClaw Hub v{props.version}</span>
+          <a href="https://github.com/youfun/WeClaw-Hub" target="_blank" rel="noopener">GitHub</a>
+        </footer>
       </>
     ),
   });
