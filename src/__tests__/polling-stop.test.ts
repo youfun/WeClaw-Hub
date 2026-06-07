@@ -94,6 +94,8 @@ describe("Bot polling stop/start persistence", () => {
     });
     expect(startRes.status).toBe(200);
 
+    await new Promise((r) => setTimeout(r, 200));
+
     const status2 = await SELF.fetch(
       `http://localhost/bot/${BOT_ID}/status`,
       { headers: { Authorization: AUTH } },
