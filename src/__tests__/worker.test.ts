@@ -827,13 +827,13 @@ describe("/bot/:id/tasks", () => {
 
 describe("admin pages", () => {
   it("GET /login returns HTML and contains updated steps and expired overlay CSS/JS", async () => {
-    const res = await get("/login");
+    const res = await get("/bind");
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("text/html");
     const html = await res.text();
     expect(html).toContain("WeClaw Hub");
     expect(html).toContain("1. 使用微信扫描下方二维码");
-    expect(html).toContain("2. 在手机端确认登录");
+    expect(html).toContain("2. 在手机端确认授权");
     expect(html).toContain("3. 确认授权后自动完成机器人绑定");
     expect(html).toContain("qr-expired-overlay");
   });
