@@ -64,6 +64,84 @@ modelRoutes.post("/api/models/import", async (c) => {
   return c.json({ ok: true, imported, skipped });
 });
 
+// POST /api/models/batch — import multiple models with role assignment
+modelRoutes.post("/api/models/batch", async (c) => {
+  const VALID_ROLES = new Set([null, "daily", "complex", "extraction"]);
+
+  const body = (await c.req.json()) as {
+    models?: Array<{
+      providerId?: string;
+      model?: string;
+      displayName?: string;
+      role?: string | null;
+    }>;
+  };
+
+  if (!body.models?.length) return c.json({ error: "models array is required" }, 400);
+
+  const errors: string[] = [];
+  const valid: Array<{ model: string; displayName: string; providerId: string; role: string | null }> = [];
+
+  for (let i = 0; i < body.models.length; i++) {
+    const item = body.models[i]!;
+    const providerId = item.providerId?.trim();
+    const modelId = item.model?.trim();
+    const displayName = item.displayName?.trim();
+    const role = item.role ?? null;
+
+    if (!providerId || !modelId || !displayName) {
+      errors.push(`item[${i}]: missing required fields (providerId, model, displayName)`);
+      continue;
+    }
+    if (role !== null && !VALID_ROLES.has(role)) {
+      errors.push(`item[${i}]: invalid role "${role}"`);
+      continue;
+    }
+    valid.push({ model: modelId, displayName, providerId, role: role as string | null });
+  }
+
+  if (errors.length > 0 && valid.length === 0) {
+    return c.json({ error: errors.join("; ") }, 400);
+  }
+
+  const models = await loadModels(c.env);
+  let imported = 0;
+  let skipped = 0;
+
+  for (const item of valid) {
+    if (models.some((existing) => existing.displayName === item.displayName)) {
+      skipped++;
+      continue;
+    }
+    // One model per role: clear the role from any existing model with the same role
+    if (item.role) {
+      const existing = models.find((m) => m.role === item.role);
+      if (existing) existing.role = null;
+    }
+    models.push({
+      model: item.model,
+      displayName: item.displayName,
+      providerId: item.providerId,
+      role: item.role,
+    });
+    imported++;
+  }
+
+  await c.env.BACKENDS.put("llm:models", JSON.stringify(models));
+
+  // Auto-configure image model on first import only (don't override existing)
+  const existingImageModel = await c.env.BACKENDS.get("llm:image_model");
+  if (!existingImageModel) {
+    const imageModel = valid.find((m) => /image|draw|img/i.test(m.model));
+    if (imageModel) {
+      await c.env.BACKENDS.put("llm:image_provider_id", imageModel.providerId);
+      await c.env.BACKENDS.put("llm:image_model", imageModel.model);
+    }
+  }
+
+  return c.json({ ok: true, imported, skipped, errors: errors.length > 0 ? errors : undefined });
+});
+
 modelRoutes.put("/api/models/active", async (c) => {
   const body = (await c.req.json()) as { name?: string };
   if (!body.name) return c.json({ error: "missing name" }, 400);

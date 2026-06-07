@@ -19,6 +19,7 @@ type AdminPageProps = {
   imageProviderId: string | null;
   imageModel: string | null;
   origin: string;
+  version: string;
 };
 
 export function adminPage(props: AdminPageProps): Response {
@@ -29,6 +30,7 @@ export function adminPage(props: AdminPageProps): Response {
     botIds: props.bots.map((b) => b.bot_id),
     imageProviderId: props.imageProviderId,
     imageModel: props.imageModel,
+    version: props.version,
   });
 
   return renderPage({
@@ -44,8 +46,8 @@ export function adminPage(props: AdminPageProps): Response {
         >
           <div class="grid">
             {props.bots.length ? props.bots.map((bot) => (
-              <div class={`row stripe-${bot.polling ? "ok" : "warn"}`} style="position:relative;overflow:hidden">
-                <div style="padding-left:4px">
+              <div class={`row stripe-${bot.polling ? "ok" : "warn"} relative overflow-hidden`}>
+                <div class="pl-1">
                   <strong>{bot.bot_id}</strong>
                   <div class="meta">
                     <span class="meta-chip">{bot.remark || "未备注"}</span>
@@ -58,6 +60,9 @@ export function adminPage(props: AdminPageProps): Response {
                     text={bot.polling ? "轮询中" : "已停止"}
                     pulse={bot.polling}
                   />
+                  <button class="button" type="button" data-toggle-polling={bot.bot_id} data-next={bot.polling ? "stop" : "start"} style={bot.polling ? "" : "background:var(--brand);color:#fff;border-color:var(--brand)"}>
+                    {bot.polling ? "停止" : "启动"}
+                  </button>
                   <a class="button primary" href={`/admin/bot/${encodeURIComponent(bot.bot_id)}`}>进入配置</a>
                   <button class="button" type="button" data-unbind-bot={bot.bot_id}>解除</button>
                 </div>
@@ -75,8 +80,8 @@ export function adminPage(props: AdminPageProps): Response {
             {props.providers.length ? props.providers.map((provider) => (
               <div class="row">
                 <div>
-                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-                    <strong style="margin-bottom:0">{provider.name}</strong>
+                  <div class="flex items-center gap-2 mb-2">
+                    <strong class="mb-0">{provider.name}</strong>
                     <Chip
                       color={provider.type === "anthropic" ? "purple" : "blue"}
                       text={displayProviderType(provider.type)}
@@ -95,11 +100,11 @@ export function adminPage(props: AdminPageProps): Response {
             )) : <EmptyState text="暂无供应商。" />}
           </div>
 
-          <div class="inline" style="margin-top:12px">
+          <div class="inline mt-3">
             <button id="toggle-provider-form" class="button" type="button">+ 添加供应商</button>
           </div>
 
-          <div id="provider-form-wrap" class="card hidden" style="margin-top:12px">
+          <div id="provider-form-wrap" class="card hidden mt-3">
               <form id="provider-form" class="stack">
                 <strong>添加供应商</strong>
                 <div class="form-grid">
@@ -122,7 +127,7 @@ export function adminPage(props: AdminPageProps): Response {
               </form>
           </div>
 
-          <div style="height: 14px"></div>
+          <div class="h-3" />
 
           <form id="provider-edit-form" class="card stack hidden">
             <strong>编辑供应商</strong>
@@ -145,12 +150,13 @@ export function adminPage(props: AdminPageProps): Response {
             </div>
           </form>
 
-          <div style="height: 14px"></div>
+          <div class="h-3" />
 
           <div id="model-import" class="card stack hidden">
             <strong id="model-import-title">从供应商导入模型</strong>
+            <div id="model-import-roles" class="meta text-body mb-3 leading-8"></div>
             <div id="model-import-list" class="stack"></div>
-            <div class="inline">
+            <div class="inline mt-2">
               <button id="import-selected-models" class="primary" type="button">导入所选模型</button>
             </div>
           </div>
@@ -165,8 +171,8 @@ export function adminPage(props: AdminPageProps): Response {
             {props.models.length ? props.models.map((model) => (
               <div class="row">
                 <div>
-                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-                    <strong style="margin-bottom:0">{model.displayName}</strong>
+                  <div class="flex items-center gap-2 mb-2">
+                    <strong class="mb-0">{model.displayName}</strong>
                     {model.role ? (
                       <Chip
                         color={model.role === "complex" ? "brand" : model.role === "extraction" ? "purple" : "terminal"}
@@ -191,11 +197,11 @@ export function adminPage(props: AdminPageProps): Response {
             )) : <EmptyState text="暂无模型配置。" />}
           </div>
 
-          <div class="inline" style="margin-top:12px">
+          <div class="inline mt-3">
             <button id="toggle-model-form" class="button" type="button">+ 添加模型</button>
           </div>
 
-          <div id="model-form-wrap" class="card hidden" style="margin-top:12px">
+          <div id="model-form-wrap" class="card hidden mt-3">
               <form id="model-form" class="stack">
                 <strong>添加模型</strong>
                 <div class="form-grid">
@@ -211,9 +217,9 @@ export function adminPage(props: AdminPageProps): Response {
                     <label>角色</label>
                     <select name="role">
                       <option value="">未设置</option>
-                      <option value="daily">日常 — 聊天、简单问答</option>
-                      <option value="complex">复杂推理 — 编程、分析</option>
-                      <option value="extraction">记忆提取 — 推荐轻量模型</option>
+                      <option value="daily">日常 - 聊天、简单问答</option>
+                      <option value="complex">复杂推理 - 编程、分析</option>
+                      <option value="extraction">记忆提取 - 推荐轻量模型</option>
                     </select>
                   </div>
                 </div>
@@ -240,9 +246,9 @@ export function adminPage(props: AdminPageProps): Response {
                 <label>角色</label>
                 <select name="role">
                   <option value="">未设置</option>
-                  <option value="daily">日常 — 聊天、简单问答</option>
-                  <option value="complex">复杂推理 — 编程、分析</option>
-                  <option value="extraction">记忆提取 — 推荐轻量模型</option>
+                  <option value="daily">日常 - 聊天、简单问答</option>
+                  <option value="complex">复杂推理 - 编程、分析</option>
+                  <option value="extraction">记忆提取 - 推荐轻量模型</option>
                 </select>
               </div>
             </div>
@@ -289,16 +295,16 @@ export function adminPage(props: AdminPageProps): Response {
               const source = String(w.source || "generic");
               return (
                 <div class="row">
-                  <div style="display:flex;align-items:flex-start;gap:8px">
-                    <span style="font-size:18px;margin-top:-1px;color:var(--ink-muted);opacity:0.5" aria-hidden="true">→</span>
+                  <div class="flex items-center gap-2">
+                    <span class="text-lg text-muted mt--1 opacity-50" aria-hidden="true">→</span>
                     <div>
-                      <strong style="margin-bottom:4px">{String(w.name || w.path || "Webhook")}</strong>
+                      <strong class="mb-1">{String(w.name || w.path || "Webhook")}</strong>
                       <div class="meta">
                         <Chip
                           color={source === "github" ? "brand" : source === "tapd" ? "amber" : "blue"}
                           text={displayWebhookSource(source)}
                         />
-                        <span class="code-inline" style="user-select:all">{props.origin}/webhooks/{String(w.path || "")}</span>
+                        <span class="code-inline select-all">{props.origin}/webhooks/{String(w.path || "")}</span>
                       </div>
                     </div>
                   </div>
@@ -310,11 +316,11 @@ export function adminPage(props: AdminPageProps): Response {
             }) : <EmptyState text="暂无 Webhook。" />}
           </div>
 
-          <div class="inline" style="margin-top:12px">
+          <div class="inline mt-3">
             <button id="toggle-webhook-form" class="button" type="button">+ 添加 Webhook</button>
           </div>
 
-          <div id="webhook-form-wrap" class="card hidden" style="margin-top:12px">
+          <div id="webhook-form-wrap" class="card hidden mt-3">
               <form id="webhook-form" class="stack">
                 <strong>添加 Webhook</strong>
                 <div class="form-grid">
@@ -337,12 +343,12 @@ export function adminPage(props: AdminPageProps): Response {
                   </div>
                   <div class="field full">
                     <label>目标机器人</label>
-                    <div id="webhook-bot-ids" class="stack" style="gap:6px">
+                    <div id="webhook-bot-ids" class="stack gap-2">
                       {props.bots.length ? props.bots.map((bot) => (
-                        <label class="row" style="padding:8px 12px;align-items:center;flex-direction:row">
-                          <span style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-                            <strong style="margin:0;display:inline-block">{bot.bot_id}</strong>
-                            {bot.remark ? <span class="meta-chip" style="font-size:11px;padding:1px 6px">{bot.remark}</span> : null}
+                        <label class="row">
+                          <span class="flex items-center gap-2 flex-wrap">
+                            <strong class="m-0 d-inline-block">{bot.bot_id}</strong>
+                            {bot.remark ? <span class="meta-chip text-xs py-0-5 px-1">{bot.remark}</span> : null}
                           </span>
                           <input type="checkbox" name="bot_id" value={bot.bot_id} />
                         </label>
@@ -352,17 +358,17 @@ export function adminPage(props: AdminPageProps): Response {
                   <div class="field full">
                     <label>消息模板（可选）</label>
                     <input name="template" placeholder="💰 新订单 ${data.object.amount_total}" />
-                    <span class="muted" style="font-size:12px;margin-top:4px">用 <code>$&#123;字段路径&#125;</code> 提取 JSON 字段，支持算术如 <code>$&#123;price * qty&#125;</code></span>
+                    <span class="muted text-sm mt-1">用 <code>$&#123;字段路径&#125;</code> 提取 JSON 字段，支持算术如 <code>$&#123;price * qty&#125;</code></span>
                   </div>
                   <div class="field full">
-                    <div class="callout" style="margin-top: 8px; border-color: var(--line);">
+                    <div class="callout mt-2">
                       <strong>💡 Webhook 数据转发规则说明</strong>
-                      <p style="font-size:12px;margin:4px 0 0;line-height:1.5">根据选择的<b>消息来源</b>，系统会自动解析并推送不同的内容：</p>
-                      <ul style="font-size:12px;color:var(--ink-muted);margin:6px 0 0;padding-left:20px;line-height:1.6">
+                      <p class="text-sm mt-1">根据选择的<b>消息来源</b>，系统会自动解析并推送不同的内容：</p>
+                      <ul class="text-sm text-muted mt-1 pl-5 leading-6">
                         <li><b>GitHub</b>: 自动解析并格式化推送 <code>push</code>, <code>pull_request</code>, <code>issues</code> 等事件（包含提交数、分支、标题等）。</li>
                         <li><b>TAPD</b>: 自动解析并翻译推送 <code>需求</code>, <code>缺陷</code>, <code>任务</code> 等创建与状态流转事件。</li>
                         <li><b>通用/自定义</b>:
-                          <ul style="padding-left:15px;list-style-type:circle">
+                          <ul class="list-circle">
                             <li>若配置了<b>消息模板</b>，系统将根据模板插值规则（支持如 <code>data.price * qty</code> 计算）提取并推送。</li>
                             <li>若未配置模板，系统将自动尝试提取 JSON 体中的 <code>text</code>, <code>message</code> 或 <code>content</code> 字段。</li>
                             <li>如均未找到，则将整个 JSON 转换为文本或直接转发原始纯文本。</li>
@@ -381,6 +387,10 @@ export function adminPage(props: AdminPageProps): Response {
         </Section>
 
         <script dangerouslySetInnerHTML={{ __html: buildAdminScript(payload) }} />
+        <footer class="admin-footer">
+          <span>WeClaw Hub v{props.version}</span>
+          <a href="https://github.com/youfun/WeClaw-Hub" target="_blank" rel="noopener">GitHub</a>
+        </footer>
       </>
     ),
   });
@@ -598,6 +608,18 @@ document.querySelectorAll("[data-unbind-bot]").forEach((button) => {
   });
 });
 
+document.querySelectorAll("[data-toggle-polling]").forEach((button) => {
+  button.addEventListener("click", async () => {
+    const botId = button.dataset.togglePolling;
+    const action = button.dataset.next; // "start" or "stop"
+    const label = action === "stop" ? "停止中..." : "启动中...";
+    await wrapSubmit(button, label, async () => {
+      await api("POST", "/bot/" + botId + "/" + action);
+      location.reload();
+    });
+  });
+});
+
 document.querySelectorAll("[data-edit-provider]").forEach((button) => {
   button.addEventListener("click", () => {
     // Hide the add form if open
@@ -715,13 +737,65 @@ document.querySelectorAll("[data-load-models]").forEach((button) => {
       const imported = new Set(adminData.models.filter((item) => item.providerId === activeProviderId).map((item) => item.model));
       const wrap = document.getElementById("model-import");
       const title = document.getElementById("model-import-title");
+      const rolesEl = document.getElementById("model-import-roles");
       const list = document.getElementById("model-import-list");
       if (!wrap || !title || !list) return;
       title.textContent = "从 " + (provider?.name || activeProviderId) + " 导入模型";
+
+      // Role guidance panel
+      const roleCounts = {};
+      adminData.models.forEach((m) => { if (m.role) roleCounts[m.role] = (roleCounts[m.role] || 0) + 1; });
+      const dailyCount = roleCounts.daily || 0;
+      const complexCount = roleCounts.complex || 0;
+      const extractionCount = roleCounts.extraction || 0;
+      rolesEl.innerHTML = [
+        '<span class="' + (dailyCount ? 'text-brand' : 'text-muted') + '">日常: ' + dailyCount + '</span>',
+        '<span class="' + (complexCount ? 'text-brand' : 'text-muted') + '">复杂: ' + complexCount + '</span>',
+        '<span class="' + (extractionCount ? 'text-purple' : 'text-muted') + '">记忆提取: ' + extractionCount + (extractionCount ? '' : ' ⚠️ 建议配置轻量模型') + '</span>',
+      ].join(' · ');
+
+      // Smart role guess
+      function guessRole(name) {
+        const lower = name.toLowerCase();
+        if (/haiku|flash|mini|lite/.test(lower)) return 'daily';
+        if (/sonnet|pro|opus|router/.test(lower)) return 'complex';
+        return null;
+      }
+      function isTextModel(name) {
+        return !/tts|asr|audio|realtime|image|draw/.test(name.toLowerCase());
+      }
+
       list.innerHTML = (res.models || []).map((model) => {
-        const checked = imported.has(model.id);
-        return '<label class="row"><span><strong>' + model.name + '</strong><span class="meta"><span class="code-inline">' + model.id + '</span></span></span><input type="checkbox" data-import-model="' + model.id + '" data-import-name="' + model.name + '" ' + (checked ? 'disabled' : '') + '></label>';
-      }).join("") || '<p class="muted">未找到可导入的模型</p>';
+        if (imported.has(model.id)) {
+          const existing = adminData.models.find((m) => m.model === model.id && m.providerId === activeProviderId);
+          const roleText = existing?.role === 'complex' ? '复杂' : existing?.role === 'extraction' ? '记忆提取' : existing?.role === 'daily' ? '日常' : '';
+          const roleBadge = roleText ? '<span class="text-xs text-brand ml-1">' + roleText + '</span>' : '';
+          return '<label class="row items-center gap-2 opacity-50">' +
+            '<input type="checkbox" disabled>' +
+            '<span class="flex-1 min-w-0"><strong>' + model.name + '</strong><span class="meta"><span class="code-inline">' + model.id + '</span>' + roleBadge + '</span></span>' +
+            '<span class="text-xs text-muted">已导入</span>' +
+          '</label>';
+        }
+        const guessedRole = guessRole(model.name);
+        const isText = isTextModel(model.name);
+        const conflict = guessedRole ? adminData.models.find((m) => m.role === guessedRole && m.model !== model.id) : null;
+        const warnHtml = conflict
+          ? '<span class="text-xs text-brand ml-1">将替换 ' + conflict.displayName + '</span>'
+          : '';
+        return '<label class="row items-center gap-2">' +
+          '<input type="checkbox" data-import-model="' + model.id + '" data-import-name="' + model.name + '" ' + (isText ? 'checked' : '') + '>' +
+          '<span class="flex-1 min-w-0"><strong>' + model.name + '</strong><span class="meta"><span class="code-inline">' + model.id + '</span></span></span>' +
+          '<span class="d-inline-flex items-center gap-1">' +
+            '<select data-import-role="' + model.id + '" class="text-sm form-select">' +
+              '<option value="--">--</option>' +
+              '<option value="daily"' + (guessedRole === 'daily' ? ' selected' : '') + '>日常</option>' +
+              '<option value="complex"' + (guessedRole === 'complex' ? ' selected' : '') + '>复杂</option>' +
+              '<option value="extraction">记忆提取</option>' +
+            '</select>' +
+            warnHtml +
+          '</span>' +
+        '</label>';
+      }).join('') || '<p class="muted">未找到可导入的模型</p>';
       wrap.classList.remove("hidden");
     });
   });
@@ -730,13 +804,18 @@ document.querySelectorAll("[data-load-models]").forEach((button) => {
 document.getElementById("import-selected-models")?.addEventListener("click", async (event) => {
   if (!activeProviderId) return;
   const button = event.currentTarget;
-  const selected = Array.from(document.querySelectorAll("[data-import-model]:checked")).map((input) => ({
-    model: input.dataset.importModel,
-    displayName: input.dataset.importName,
-  }));
+  const selected = Array.from(document.querySelectorAll("[data-import-model]:checked")).map((input) => {
+    const roleSel = document.querySelector('[data-import-role="' + input.dataset.importModel + '"]');
+    return {
+      providerId: activeProviderId,
+      model: input.dataset.importModel,
+      displayName: input.dataset.importName,
+      role: roleSel?.value || null,
+    };
+  });
   if (!selected.length) return;
   await wrapSubmit(button, "导入中...", async () => {
-    await api("POST", "/api/models/import", { providerId: activeProviderId, models: selected });
+    await api("POST", "/api/models/batch", { models: selected });
     location.reload();
   });
 });

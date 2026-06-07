@@ -1,0 +1,39 @@
+{
+  "_comment": "Claude Code (droid) HTTP Hook 配置 — 推荐方案，无需 shell 脚本",
+  "_note": "HTTP Hook 直接 POST 事件 JSON 到 WeClaw-Hub，转发原始 hook 数据",
+
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "http",
+            "url": "https://weclaw-hub.YOUR-DOMAIN.workers.dev/webhooks/agent_notify_xxx",
+            "headers": {
+              "Authorization": "Bearer YOUR_WECLAW_SECRET",
+              "Content-Type": "application/json"
+            },
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "idle_prompt",
+        "hooks": [
+          {
+            "type": "http",
+            "url": "https://weclaw-hub.YOUR-DOMAIN.workers.dev/webhooks/agent_notify_xxx",
+            "headers": {
+              "Authorization": "Bearer YOUR_WECLAW_SECRET",
+              "Content-Type": "application/json"
+            },
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,27 @@
+node_modules/
+.git/
+.gitignore
+*.md
+LICENSE
+
+# Cloudflare
+wrangler.toml
+.dev.vars
+.dev.vars.example
+.vs-code/
+
+# Test files
+src/__tests__/
+vitest.config.ts
+vitest.local.config.ts
+
+# Development
+.kiro/
+ref/
+
+# Data (mounted as volume)
+data/
+
+# OS files
+.DS_Store
+Thumbs.db

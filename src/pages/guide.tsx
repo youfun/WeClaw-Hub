@@ -20,9 +20,25 @@ export function guidePage(): Response {
           <div class="callout">
             <strong>对话历史 vs 记忆</strong>
             <p>
-              <strong style="font-weight:600">对话历史</strong>是上下文窗口，保留最近 100 条消息（约 50 轮）供 AI 参考，发送 <span class="code-inline">/clear</span> 即可清空，开启全新对话。<span class="code-inline">/clear</span> 是纯命令，不经过 AI，因此<strong style="font-weight:600">不会触发记忆提取</strong>。<br />
-              <strong style="font-weight:600">记忆</strong>只在 AI 实际回复后自动提取，<span class="code-inline">/clear</span> 不会清除记忆，需在管理台手动删除。
+              <strong class="font-semibold">对话历史</strong>是上下文窗口，保留最近 100 条消息（约 50 轮）供 AI 参考，发送 <span class="code-inline">/clear</span> 即可清空，开启全新对话。<span class="code-inline">/clear</span> 是纯命令，不经过 AI，因此<strong class="font-semibold">不会触发记忆提取</strong>。<br />
+              <strong class="font-semibold">记忆</strong>只在 AI 实际回复后自动提取，<span class="code-inline">/clear</span> 不会清除记忆，需在管理台手动删除。
             </p>
+          </div>
+        </Section>
+
+        <Section title="对话管理" description="管理多个对话分支，切换与压缩历史。" dot="green">
+          <div class="grid">
+            <CommandRow cmd="/conv" desc="列出所有对话，显示编号、标题和消息数" />
+            <CommandRow cmd="/conv new [标题]" desc="新建一个空白对话" example="/conv new 技术讨论" />
+            <CommandRow cmd="/conv <序号>" desc="切换到指定对话（序号来自 /conv 列表）" example="/conv 2" />
+            <CommandRow cmd="/conv rename <序号> <标题>" desc="重命名对话" example="/conv rename 1 新标题" />
+            <CommandRow cmd="/conv delete <序号>" desc="删除对话及其消息（至少保留一个对话）" example="/conv delete 3" />
+            <CommandRow cmd="/compress" desc="压缩当前对话历史，将旧消息替换为摘要以减少 token 消耗" />
+          </div>
+          <div class="callout">
+            <strong>多对话场景</strong>
+            <p>每个用户可以创建多个独立对话，不同话题互不干扰。切换对话后 AI 只看到当前对话的历史，干净清爽。<br />
+            使用 <span class="code-inline">/compress</span> 可以在长对话中触发自动摘要压缩：保留最近 20 条消息 + 最早 10 条消息，中间部分用摘要替代。</p>
           </div>
         </Section>
 
@@ -31,8 +47,8 @@ export function guidePage(): Response {
             <CommandRow cmd="/model" desc="列出所有可用模型，显示当前激活的模型" />
             <CommandRow cmd="/model [名称或编号]" desc="手动切换到指定模型" example="/model 2  或  /model Sonnet" />
             <CommandRow cmd="/mode" desc="查看当前模式（智能选择 / 手动指定）" />
-            <CommandRow cmd="/mode family" desc="切换到智能选择 — 根据问题复杂度自动匹配模型（推荐）" />
-            <CommandRow cmd="/mode manual" desc="切换到手动指定 — 始终使用当前选中的模型" />
+            <CommandRow cmd="/mode family" desc="切换到智能选择 - 根据问题复杂度自动匹配模型（推荐）" />
+            <CommandRow cmd="/mode manual" desc="切换到手动指定 - 始终使用当前选中的模型" />
           </div>
           <div class="callout">
             <strong>智能选择说明</strong>
@@ -53,7 +69,7 @@ export function guidePage(): Response {
             </div>
             <div class="card stack">
               <strong>存储规格</strong>
-              <div class="grid" style="margin-top:4px">
+              <div class="grid mt-1">
                 <MemoryStatRow label="最大存储条数" value="40 条 / Bot" />
                 <MemoryStatRow label="每次对话注入" value="得分最高的 20 条" />
                 <MemoryStatRow label="命令查看上限" value="最近 10 条" />
@@ -62,30 +78,30 @@ export function guidePage(): Response {
             </div>
           </div>
 
-          <div class="callout" style="margin-top:14px">
+          <div class="callout mt-4">
             <strong>提取模型选择（优先级）</strong>
             <p>记忆提取是结构化 JSON 抽取任务，推荐配置一个便宜的小模型专门负责，避免每轮对话都消耗高价模型的 token。</p>
-            <p style="margin-top:8px">优先级：<Chip color="purple" text="记忆提取" /> 角色模型 → <Chip color="terminal" text="日常" /> 角色模型 → 列表第一个模型</p>
-            <p style="margin-top:8px">建议：在管理台给 Haiku / Gemini Flash / GPT-4o-mini 等小模型设置 <Chip color="purple" text="记忆提取" /> 角色。</p>
+            <p class="mt-2">优先级：<Chip color="purple" text="记忆提取" /> 角色模型 → <Chip color="terminal" text="日常" /> 角色模型 → 列表第一个模型</p>
+            <p class="mt-2">建议：在管理台给 Haiku / Gemini Flash / GPT-4o-mini 等小模型设置 <Chip color="purple" text="记忆提取" /> 角色。</p>
           </div>
 
-          <div class="callout" style="margin-top:10px">
+          <div class="callout mt-3">
             <strong>得分机制</strong>
             <p>每条记忆有一个动态得分：<span class="code-inline">命中次数 × 2 + 最近 14 天内距上次命中的天数差</span>。得分越高越优先注入上下文，长期未被用到的记忆会自然降权。</p>
           </div>
 
-          <div style="height:14px" />
+          <div class="h-3" />
           <div class="grid">
             <CommandRow cmd="/memory" desc="查看当前存储的记忆条目（最多显示 10 条）" />
           </div>
-          <p class="muted" style="font-size:13px;margin-top:10px">也可在管理台 → Bot 配置页面查看全部记忆、删除单条或一键清空。</p>
+          <p class="muted text-body mt-2">也可在管理台 → Bot 配置页面查看全部记忆、删除单条或一键清空。</p>
         </Section>
 
         <Section title="定时任务" description="Bot 支持在指定时间自动发送消息。" dot="cf">
           <div class="grid">
             <CommandRow cmd="/tasks" desc="列出所有定时任务及下次触发时间" />
           </div>
-          <p class="muted" style="font-size:13px;margin-top:10px">定时任务在管理台 → Bot 配置页面创建和管理。</p>
+          <p class="muted text-body mt-2">定时任务在管理台 → Bot 配置页面创建和管理。</p>
         </Section>
 
         <Section title="Webhook 通知" description="把外部服务的事件推送到微信。" dot="sky">
@@ -100,7 +116,7 @@ export function guidePage(): Response {
             </div>
             <div class="card stack">
               <strong>支持的来源</strong>
-              <div class="grid" style="margin-top:4px">
+              <div class="grid mt-1">
                 <SourceRow name="github" desc="Push、PR、Issue、Release 等事件，格式化展示" />
                 <SourceRow name="generic" desc="任意 JSON/文本 payload，原样转发" />
               </div>
@@ -154,28 +170,28 @@ function CommandRow({ cmd, desc, example }: { cmd: string; desc: string; example
   return (
     <div class="row">
       <div>
-        <span class="code-inline" style="font-size:14px">{cmd}</span>
+        <span class="code-inline text-base">{cmd}</span>
         {example ? <p class="cmd-example">例：{example}</p> : null}
       </div>
-      <div style="text-align:right;color:var(--ink-muted);font-size:14px;max-width:55%">{desc}</div>
+      <div class="text-muted text-base w-55">{desc}</div>
     </div>
   );
 }
 
 function MemoryStatRow({ label, value }: { label: string; value: string }) {
   return (
-    <div class="row" style="padding:10px 14px">
-      <span style="color:var(--ink-muted);font-size:13px">{label}</span>
-      <span class="code-inline" style="font-size:13px">{value}</span>
+    <div class="row p-3">
+      <span class="text-muted text-sm">{label}</span>
+      <span class="code-inline text-sm">{value}</span>
     </div>
   );
 }
 
 function SourceRow({ name, desc }: { name: string; desc: string }) {
   return (
-    <div class="row" style="padding:10px 14px">
-      <span class="code-inline" style="font-size:13px">{name}</span>
-      <span style="color:var(--ink-muted);font-size:13px">{desc}</span>
+    <div class="row p-3">
+      <span class="code-inline text-sm">{name}</span>
+      <span class="text-muted text-sm">{desc}</span>
     </div>
   );
 }

@@ -31,6 +31,58 @@ bun run deploy       # 部署到 Cloudflare
 本地開發時 `AUTH_TOKEN` 放在 `.dev.vars`（可由 `.dev.vars.example` 複製），不要放入 `wrangler.toml`；KV/DO 數據存在本地（`--local` 自動創建）。
 [强制要求]对于新功能，请使用TDD（先红后绿）拆成可执行阶段进行开发
 
+## TDD 開發流程
+
+### 紅綠重構循環
+
+```
+1. RED   — 先寫失敗的測試（定義期望行為）
+2. GREEN — 寫最少代碼讓測試通過
+3. REFACTOR — 重構代碼，保持測試綠
+4. 重複 1-3，每個 Phase 完成後跑全量測試
+```
+
+### 測試文件命名
+
+```
+src/__tests__/<feature>.test.ts
+```
+
+### 測試框架
+
+- **單元測試**（pure logic）：`vitest`，直接 import，如 `router.test.ts`
+- **集成測試**（KV/DO/HTTP）：`vitest` + `@cloudflare/vitest-pool-workers`，通過 `SELF.fetch` + `env` 與真實 Worker 交互
+
+### 集成測試模式
+
+```typescript
+import { SELF, env } from "cloudflare:test";
+
+const AUTH = "Bearer test-token";
+
+async function get(path: string) {
+  return SELF.fetch(`http://localhost${path}`, {
+    headers: { Authorization: AUTH },
+  });
+}
+
+async function post(path: string, body: unknown) {
+  return SELF.fetch(`http://localhost${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: AUTH },
+    body: JSON.stringify(body),
+  });
+}
+```
+
+### 開發順序（按 Phase 推進）
+
+1. **寫測試** → 定義 API 合約、邊界條件、錯誤路徑
+2. **寫實現** → 最簡代碼讓測試通過
+3. **重構** → 消除重複、改善命名、對齊現有模式
+4. **跑全量** → `npx vitest run` 確保無回歸
+5. **提交** → 按 Phase 分批 commit，message 標註 `[Phase N]`
+
 ## 架構說明
 
 ### Worker 入口（`src/index.ts`）

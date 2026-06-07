@@ -88,4 +88,71 @@ describe("parseRoute", () => {
       message: "hi",
     });
   });
+
+  // ── /conv (对话管理) ──────────────────────────────────────────────────
+
+  it("returns conv for /conv alone (list)", () => {
+    expect(parseRoute("/conv")).toEqual({ type: "conv" });
+  });
+
+  it("returns conv new for /conv new <title>", () => {
+    expect(parseRoute("/conv new 新对话")).toEqual({
+      type: "conv",
+      sub: "new",
+      title: "新对话",
+    });
+  });
+
+  it("returns conv new for /conv new without title", () => {
+    expect(parseRoute("/conv new")).toEqual({
+      type: "conv",
+      sub: "new",
+      title: "",
+    });
+  });
+
+  it("returns conv switch for /conv <index>", () => {
+    expect(parseRoute("/conv 3")).toEqual({
+      type: "conv",
+      sub: "switch",
+      index: 3,
+    });
+  });
+
+  it("returns conv rename for /conv rename <index> <title>", () => {
+    expect(parseRoute("/conv rename 2 新标题")).toEqual({
+      type: "conv",
+      sub: "rename",
+      index: 2,
+      title: "新标题",
+    });
+  });
+
+  it("returns conv delete for /conv delete <index>", () => {
+    expect(parseRoute("/conv delete 1")).toEqual({
+      type: "conv",
+      sub: "delete",
+      index: 1,
+    });
+  });
+
+  it("routes unknown conv subcommand to agent", () => {
+    expect(parseRoute("/conv xyz")).toEqual({
+      type: "agent",
+      message: "/conv xyz",
+    });
+  });
+
+  // ── /compress (对话压缩) ──────────────────────────────────────────────
+
+  it("returns compress for /compress alone", () => {
+    expect(parseRoute("/compress")).toEqual({ type: "compress" });
+  });
+
+  it("returns compress status for /compress status", () => {
+    expect(parseRoute("/compress status")).toEqual({
+      type: "compress",
+      sub: "status",
+    });
+  });
 });

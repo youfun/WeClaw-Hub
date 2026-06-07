@@ -1,0 +1,31 @@
+{
+  "_comment": "Codex CLI (codex) Hook 配置 — 复制到 ~/.codex/hooks.json",
+  "_note": "使用 /hooks 命令在 Codex 中查看并信任此 hook，首次使用需确认",
+  "_env": "需要在 ~/.zshrc 或 ~/.bashrc 中设置 WECLAW_WEBHOOK_URL 和 WECLAW_WEBHOOK_SECRET",
+  "_alt": "也可将 hooks 配置内联在 ~/.codex/config.toml 的 [hooks] 段中",
+
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/path/to/agent-hooks/notify-weclaw.sh codex stop",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/path/to/agent-hooks/notify-weclaw.sh codex subagent_stop",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

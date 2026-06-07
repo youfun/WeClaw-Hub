@@ -14,6 +14,6 @@ export function renderQrSvg(content: string): string {
   return qr.createSvgTag({
     cellSize,
     margin: QR_MARGIN,
-    scalable: true,
+    scalable: false,
   });
 }

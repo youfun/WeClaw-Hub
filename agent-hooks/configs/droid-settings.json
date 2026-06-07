@@ -1,0 +1,32 @@
+{
+  "_comment": "Claude Code (droid) Hook 配置 — 复制到 ~/.claude/settings.json",
+  "_note": "使用 /hooks 命令在 Claude Code 中查看并信任此 hook",
+  "_env": "需要设置环境变量: WECLAW_WEBHOOK_URL 和 WECLAW_WEBHOOK_SECRET",
+
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/path/to/agent-hooks/notify-weclaw.sh droid stop",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "idle_prompt",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/path/to/agent-hooks/notify-weclaw.sh droid notification",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

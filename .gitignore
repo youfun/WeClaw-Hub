@@ -45,3 +45,11 @@ ref
 src/**/*.js
 .pi/
 .rpiv/
+
+# version manager
+.vfox/
+
+# local server / docker data
+data/
+test-data-*/
+*.png
