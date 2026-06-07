@@ -517,7 +517,8 @@ label {
 
 input,
 textarea,
-select {
+select,
+.form-select {
   width: 100%;
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -716,6 +717,7 @@ select {
 .d-inline-flex { display: inline-flex; }
 .gap-1 { gap: var(--space-1); }
 .gap-2 { gap: var(--space-2); }
+.ml-1 { margin-left: var(--space-1); }
 .items-center { align-items: center; }
 .justify-between { justify-content: space-between; }
 .flex-col { flex-direction: column; }
@@ -724,6 +726,23 @@ select {
 .border-t { border-top: 1px solid var(--line); }
 .opacity-50 { opacity: 0.5; }
 .opacity-60 { opacity: 0.6; }
+.h-3 { height: var(--space-3); }
+.break-all { word-break: break-all; }
+.select-all { user-select: all; }
+.leading-6 { line-height: 1.6; }
+.leading-8 { line-height: 1.8; }
+.list-circle { list-style-type: circle; }
+.bg-brand { background: var(--brand); }
+.bg-sky { background: var(--sky); }
+.bg-terminal { background: var(--terminal); }
+.bg-base { background: var(--bg); }
+.relative { position: relative; }
+.overflow-hidden { overflow: hidden; }
+.items-stretch { align-items: stretch; }
+.py-0-5 { padding-top: 2px; padding-bottom: 2px; }
+.m-0 { margin: 0; }
+.mb-0 { margin-bottom: 0; }
+.mt--1 { margin-top: -1px; }
 
 /* ── Responsive ── */
 @media (max-width: 860px) {

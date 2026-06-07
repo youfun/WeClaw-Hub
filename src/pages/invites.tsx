@@ -47,7 +47,7 @@ export function invitePage(props: InvitePageProps): Response {
           </form>
           <div id="invite-result" class="card mt-3 hidden">
             <strong>邀请已生成</strong>
-            <p class="meta mt-2">链接：<a id="invite-link" href="#" target="_blank" style="word-break:break-all"></a></p>
+            <p class="meta mt-2">链接：<a id="invite-link" href="#" target="_blank" class="break-all"></a></p>
             <div id="invite-qr" class="mt-3"></div>
             <button class="button mt-2" type="button" id="copy-invite-link">复制链接</button>
             <button class="button mt-2" type="button" id="close-invite-result">关闭</button>
@@ -62,7 +62,7 @@ export function invitePage(props: InvitePageProps): Response {
         >
           <div class="grid">
             {props.invites.length ? props.invites.map((inv) => (
-              <div class="row flex-col" style="flex-direction:column;align-items:stretch">
+              <div class="row flex-col items-stretch">
                 <div class="flex items-center justify-between">
                   <div>
                     <strong>{inv.remark || "(无备注)"}</strong>
@@ -71,7 +71,7 @@ export function invitePage(props: InvitePageProps): Response {
                         color={inviteStatusColor(inv)}
                         text={inviteStatusText(inv)}
                       />
-                      <span class="code-inline" style="user-select:all">{inv.code}</span>
+                      <span class="code-inline select-all">{inv.code}</span>
                       <span>{inv.scan_count}/{inv.max_scans} 次</span>
                     </div>
                   </div>

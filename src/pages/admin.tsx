@@ -44,8 +44,8 @@ export function adminPage(props: AdminPageProps): Response {
         >
           <div class="grid">
             {props.bots.length ? props.bots.map((bot) => (
-              <div class={`row stripe-${bot.polling ? "ok" : "warn"}`} style="position:relative;overflow:hidden">
-                <div style="padding-left:4px">
+              <div class={`row stripe-${bot.polling ? "ok" : "warn"} relative overflow-hidden`}>
+                <div class="pl-1">
                   <strong>{bot.bot_id}</strong>
                   <div class="meta">
                     <span class="meta-chip">{bot.remark || "未备注"}</span>
@@ -79,7 +79,7 @@ export function adminPage(props: AdminPageProps): Response {
               <div class="row">
                 <div>
                   <div class="flex items-center gap-2 mb-2">
-                    <strong style="margin-bottom:0">{provider.name}</strong>
+                    <strong class="mb-0">{provider.name}</strong>
                     <Chip
                       color={provider.type === "anthropic" ? "purple" : "blue"}
                       text={displayProviderType(provider.type)}
@@ -125,7 +125,7 @@ export function adminPage(props: AdminPageProps): Response {
               </form>
           </div>
 
-          <div style="height: 14px"></div>
+          <div class="h-3" />
 
           <form id="provider-edit-form" class="card stack hidden">
             <strong>编辑供应商</strong>
@@ -148,11 +148,11 @@ export function adminPage(props: AdminPageProps): Response {
             </div>
           </form>
 
-          <div style="height: 14px"></div>
+          <div class="h-3" />
 
           <div id="model-import" class="card stack hidden">
             <strong id="model-import-title">从供应商导入模型</strong>
-            <div id="model-import-roles" class="meta text-body" style="margin-bottom:12px;line-height:1.8"></div>
+            <div id="model-import-roles" class="meta text-body mb-3 leading-8"></div>
             <div id="model-import-list" class="stack"></div>
             <div class="inline mt-2">
               <button id="import-selected-models" class="primary" type="button">导入所选模型</button>
@@ -170,7 +170,7 @@ export function adminPage(props: AdminPageProps): Response {
               <div class="row">
                 <div>
                   <div class="flex items-center gap-2 mb-2">
-                    <strong style="margin-bottom:0">{model.displayName}</strong>
+                    <strong class="mb-0">{model.displayName}</strong>
                     {model.role ? (
                       <Chip
                         color={model.role === "complex" ? "brand" : model.role === "extraction" ? "purple" : "terminal"}
@@ -294,7 +294,7 @@ export function adminPage(props: AdminPageProps): Response {
               return (
                 <div class="row">
                   <div class="flex items-center gap-2">
-                    <span class="text-lg text-muted" style="margin-top:-1px;opacity:0.5" aria-hidden="true">→</span>
+                    <span class="text-lg text-muted mt--1 opacity-50" aria-hidden="true">→</span>
                     <div>
                       <strong class="mb-1">{String(w.name || w.path || "Webhook")}</strong>
                       <div class="meta">
@@ -302,7 +302,7 @@ export function adminPage(props: AdminPageProps): Response {
                           color={source === "github" ? "brand" : source === "tapd" ? "amber" : "blue"}
                           text={displayWebhookSource(source)}
                         />
-                        <span class="code-inline" style="user-select:all">{props.origin}/webhooks/{String(w.path || "")}</span>
+                        <span class="code-inline select-all">{props.origin}/webhooks/{String(w.path || "")}</span>
                       </div>
                     </div>
                   </div>
@@ -318,7 +318,7 @@ export function adminPage(props: AdminPageProps): Response {
             <button id="toggle-webhook-form" class="button" type="button">+ 添加 Webhook</button>
           </div>
 
-          <div id="webhook-form-wrap" class="card hidden" style="margin-top:12px">
+          <div id="webhook-form-wrap" class="card hidden mt-3">
               <form id="webhook-form" class="stack">
                 <strong>添加 Webhook</strong>
                 <div class="form-grid">
@@ -345,8 +345,8 @@ export function adminPage(props: AdminPageProps): Response {
                       {props.bots.length ? props.bots.map((bot) => (
                         <label class="row">
                           <span class="flex items-center gap-2 flex-wrap">
-                            <strong style="margin:0;display:inline-block">{bot.bot_id}</strong>
-                            {bot.remark ? <span class="meta-chip text-xs" style="padding:1px 6px">{bot.remark}</span> : null}
+                            <strong class="m-0 d-inline-block">{bot.bot_id}</strong>
+                            {bot.remark ? <span class="meta-chip text-xs py-0-5 px-1">{bot.remark}</span> : null}
                           </span>
                           <input type="checkbox" name="bot_id" value={bot.bot_id} />
                         </label>
@@ -362,11 +362,11 @@ export function adminPage(props: AdminPageProps): Response {
                     <div class="callout mt-2">
                       <strong>💡 Webhook 数据转发规则说明</strong>
                       <p class="text-sm mt-1">根据选择的<b>消息来源</b>，系统会自动解析并推送不同的内容：</p>
-                      <ul class="text-sm text-muted mt-1" style="padding-left:20px;line-height:1.6">
+                      <ul class="text-sm text-muted mt-1 pl-5 leading-6">
                         <li><b>GitHub</b>: 自动解析并格式化推送 <code>push</code>, <code>pull_request</code>, <code>issues</code> 等事件（包含提交数、分支、标题等）。</li>
                         <li><b>TAPD</b>: 自动解析并翻译推送 <code>需求</code>, <code>缺陷</code>, <code>任务</code> 等创建与状态流转事件。</li>
                         <li><b>通用/自定义</b>:
-                          <ul style="padding-left:15px;list-style-type:circle">
+                          <ul class="list-circle">
                             <li>若配置了<b>消息模板</b>，系统将根据模板插值规则（支持如 <code>data.price * qty</code> 计算）提取并推送。</li>
                             <li>若未配置模板，系统将自动尝试提取 JSON 体中的 <code>text</code>, <code>message</code> 或 <code>content</code> 字段。</li>
                             <li>如均未找到，则将整个 JSON 转换为文本或直接转发原始纯文本。</li>
@@ -763,7 +763,7 @@ document.querySelectorAll("[data-load-models]").forEach((button) => {
         if (imported.has(model.id)) {
           const existing = adminData.models.find((m) => m.model === model.id && m.providerId === activeProviderId);
           const roleText = existing?.role === 'complex' ? '复杂' : existing?.role === 'extraction' ? '记忆提取' : existing?.role === 'daily' ? '日常' : '';
-          const roleBadge = roleText ? '<span class="text-xs text-brand" style="margin-left:var(--space-1)">' + roleText + '</span>' : '';
+          const roleBadge = roleText ? '<span class="text-xs text-brand ml-1">' + roleText + '</span>' : '';
           return '<label class="row items-center gap-2 opacity-50">' +
             '<input type="checkbox" disabled>' +
             '<span class="flex-1 min-w-0"><strong>' + model.name + '</strong><span class="meta"><span class="code-inline">' + model.id + '</span>' + roleBadge + '</span></span>' +
@@ -774,13 +774,13 @@ document.querySelectorAll("[data-load-models]").forEach((button) => {
         const isText = isTextModel(model.name);
         const conflict = guessedRole ? adminData.models.find((m) => m.role === guessedRole && m.model !== model.id) : null;
         const warnHtml = conflict
-          ? '<span class="text-xs text-brand" style="margin-left:var(--space-1)">将替换 ' + conflict.displayName + '</span>'
+          ? '<span class="text-xs text-brand ml-1">将替换 ' + conflict.displayName + '</span>'
           : '';
         return '<label class="row items-center gap-2">' +
           '<input type="checkbox" data-import-model="' + model.id + '" data-import-name="' + model.name + '" ' + (isText ? 'checked' : '') + '>' +
           '<span class="flex-1 min-w-0"><strong>' + model.name + '</strong><span class="meta"><span class="code-inline">' + model.id + '</span></span></span>' +
           '<span class="d-inline-flex items-center gap-1">' +
-            '<select data-import-role="' + model.id + '" class="text-sm" style="width:auto;padding:var(--space-1) var(--space-2)">' +
+            '<select data-import-role="' + model.id + '" class="text-sm form-select">' +
               '<option value="--">--</option>' +
               '<option value="daily"' + (guessedRole === 'daily' ? ' selected' : '') + '>日常</option>' +
               '<option value="complex"' + (guessedRole === 'complex' ? ' selected' : '') + '>复杂</option>' +

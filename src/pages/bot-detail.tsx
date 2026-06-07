@@ -132,8 +132,8 @@ export function botDetailPage(props: BotDetailProps): Response {
         >
           <div class="grid">
             {props.tasks.length ? props.tasks.map((task) => (
-              <div class={`row stripe-${task.enabled ? "ok" : "warn"} pl-1`} style="position:relative;overflow:hidden">
-                <div style="padding-left:4px">
+              <div class={`row stripe-${task.enabled ? "ok" : "warn"} relative overflow-hidden`}>
+                <div class="pl-1">
                   <strong>{task.name}</strong>
                   <div class="meta">
                     <span class="code-inline">{humanSchedule(task)}</span>
@@ -187,7 +187,7 @@ export function botDetailPage(props: BotDetailProps): Response {
                 <label>执行时间</label>
                 <input type="time" id="daily-time" name="daily_time" value="08:00" />
               </div>
-              <div id="schedule-interval" class="field full" style="display:none">
+              <div id="schedule-interval" class="field full hidden">
                 <label>执行间隔</label>
                 <div class="flex items-center gap-2">
                   <input type="number" id="interval-value" name="interval_value" value="30" min="1" class="w-20" />
@@ -198,7 +198,7 @@ export function botDetailPage(props: BotDetailProps): Response {
                   </select>
                 </div>
               </div>
-              <div id="schedule-cron" class="field full" style="display:none">
+              <div id="schedule-cron" class="field full hidden">
                 <label>Cron 表达式</label>
                 <input id="cron-input" name="cron" value="0 8 * * *" />
                 <span class="helper">分 时 日 月 周 · 例：0 8 * * * = 每天 8:00</span>
@@ -242,7 +242,7 @@ export function botDetailPage(props: BotDetailProps): Response {
               </div>
             )) : <EmptyState text="暂无记忆。" />}
           </div>
-          <div style="height: 14px"></div>
+          <div class="h-3" />
           <div class="inline"><button id="clear-memory" class="button" type="button">清空所有</button></div>
         </Section>
 

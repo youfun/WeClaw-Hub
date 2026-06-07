@@ -81,7 +81,7 @@ function Landing() {
               <h2 class="steps-title fade-up">三种方式部署</h2>
               <div class="steps">
                 <div class="step fade-up" style="animation-delay:0.1s">
-                  <span class="step-num" style="background:#b6542d">☁️</span>
+                  <span class="step-num bg-brand">☁️</span>
                   <div>
                     <h4>Cloudflare Workers</h4>
                     <p>零成本部署在 Cloudflare 边缘网络。点击按钮一键部署，无需服务器。</p>
@@ -89,7 +89,7 @@ function Landing() {
                   </div>
                 </div>
                 <div class="step fade-up" style="animation-delay:0.2s">
-                  <span class="step-num" style="background:#0ea5e9">🐳</span>
+                  <span class="step-num bg-sky">🐳</span>
                   <div>
                     <h4>Docker 自托管</h4>
                     <p>VPS / NAS / 本地服务器上运行，数据和日志持久化。GitHub Actions 自动构建。</p>
@@ -97,7 +97,7 @@ function Landing() {
                   </div>
                 </div>
                 <div class="step fade-up" style="animation-delay:0.3s">
-                  <span class="step-num" style="background:#22c55e">🥟</span>
+                  <span class="step-num bg-terminal">🥟</span>
                   <div>
                     <h4>Bun 直接运行</h4>
                     <p>开发调试、快速尝鲜。原生 SQLite，零外部依赖，一行命令启动。</p>
@@ -107,7 +107,7 @@ function Landing() {
               </div>
             </div>
           </section>
-          <section class="steps-section" style="background:var(--bg);border-top:1px solid var(--line)">
+          <section class="steps-section bg-base border-t">
             <div class="steps-inner">
               <h2 class="steps-title fade-up">快速开始</h2>
               <div class="steps">

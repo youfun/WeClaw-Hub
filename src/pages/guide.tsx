@@ -90,7 +90,7 @@ export function guidePage(): Response {
             <p>每条记忆有一个动态得分：<span class="code-inline">命中次数 × 2 + 最近 14 天内距上次命中的天数差</span>。得分越高越优先注入上下文，长期未被用到的记忆会自然降权。</p>
           </div>
 
-          <div style="height:14px" />
+          <div class="h-3" />
           <div class="grid">
             <CommandRow cmd="/memory" desc="查看当前存储的记忆条目（最多显示 10 条）" />
           </div>
