@@ -10,7 +10,9 @@
     "tail": "wrangler tail",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:local": "bun test src/__tests__/local/"
+    "test:local": "bun test src/__tests__/local/",
+    "build": "bun build src/local/server.ts --bundle --target bun --outfile dist/bundle.js",
+    "build:compile": "bun build src/local/server.ts --compile --outfile dist/weclaw-hub"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.13.3",
