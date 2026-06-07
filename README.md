@@ -2,6 +2,8 @@
 
 微信消息中枢 — 三种方式部署，灵活选择。
 
+[![Download](https://img.shields.io/github/v/release/youfun/WeClaw-Hub?label=Download&style=for-the-badge)](https://github.com/youfun/WeClaw-Hub/releases)
+
 | 方式 | 适用场景 | 命令 |
 |------|---------|------|
 | ☁️ **Cloudflare Workers** | 零成本、免运维 | `wrangler deploy` |
@@ -152,6 +154,18 @@ AUTH_TOKEN=your-token bun run src/local/server.ts
 ```
 
 使用 Bun 原生 SQLite，无需 Docker，一个命令启动。适合本地开发和快速验证。
+
+**单文件打包**（无需 Bun 运行时）：
+
+```bash
+# 打包成原生二进制（~20MB，无外部依赖）
+bun run build:compile
+
+# 或打包成单文件 JS（需要 Bun 运行时）
+bun run build
+```
+
+打包产物在 `dist/` 目录，可直接复制到目标机器运行。
 
 ### 本地开发
 
