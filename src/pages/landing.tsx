@@ -16,7 +16,7 @@ function Landing() {
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>WeClaw Hub — 微信消息中樞</title>
-        <meta name="description" content="零服务器成本，部署在 Cloudflare Workers 上。聚合通知、AI 对话、多账号管理，一站式微信消息网关。" />
+        <meta name="description" content="三种方式部署：Cloudflare Workers 零成本、Docker 自托管、Bun 直接运行。聚合通知、AI 对话、多账号管理，一站式微信消息网关。" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Serif+SC:wght@500;700;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -36,7 +36,8 @@ function Landing() {
               <span class="hero-accent">AI 了</span>
             </h1>
             <p class="hero-text fade-up" style="animation-delay:0.2s">
-              零服务器成本，部署在 Cloudflare Workers 上。聚合通知、AI 对话、多账号管理，一站式微信消息网关。
+              三种方式部署：Cloudflare 零成本、Docker 自托管、Bun 直接运行。<br />
+              聚合 SaaS 通知、AI 对话、多账号管理，一站式微信消息网关。
             </p>
             <div class="hero-cta fade-up" style="animation-delay:0.3s">
               <a href="/guide" class="cta-primary">开始使用</a>
@@ -63,27 +64,58 @@ function Landing() {
                 <span class="feature-num">02</span>
                 <h3 class="feature-title">AI 对话</h3>
                 <p class="feature-text">
-                  在微信里直接和 Claude、GPT 对话，24 小时在线。智能模型选择，自动匹配最佳模型。
+                  在微信里直接和 Claude、GPT 对话，24 小时在线。智能模型选择、多对话管理、历史压缩。
                 </p>
               </div>
               <div class="feature fade-up" style="animation-delay:0.3s">
                 <span class="feature-num">03</span>
                 <h3 class="feature-title">消息网关</h3>
                 <p class="feature-text">
-                  多后端路由、本地 Bridge 接入、多账号统一管理。一个 Worker，管理所有微信消息。
+                  多后端路由、本地 Bridge 接入、多账号统一管理。Cloudflare / Docker / Bun 三种方式运行。
                 </p>
               </div>
             </div>
           </section>
           <section class="steps-section">
             <div class="steps-inner">
+              <h2 class="steps-title fade-up">三种方式部署</h2>
+              <div class="steps">
+                <div class="step fade-up" style="animation-delay:0.1s">
+                  <span class="step-num" style="background:#b6542d">☁️</span>
+                  <div>
+                    <h4>Cloudflare Workers</h4>
+                    <p>零成本部署在 Cloudflare 边缘网络。点击按钮一键部署，无需服务器。</p>
+                    <a href="https://deploy.workers.cloudflare.com/?url=https://github.com/youfun/weclaw-hub" target="_blank" rel="noopener" style="display:inline-block;margin-top:8px"><img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare" height="32" /></a>
+                  </div>
+                </div>
+                <div class="step fade-up" style="animation-delay:0.2s">
+                  <span class="step-num" style="background:#0ea5e9">🐳</span>
+                  <div>
+                    <h4>Docker 自托管</h4>
+                    <p>VPS / NAS / 本地服务器上运行，数据和日志持久化。GitHub Actions 自动构建。</p>
+                    <p style="font-size:0.8125rem;color:var(--ink-muted);margin-top:4px"><code>docker compose up -d</code></p>
+                  </div>
+                </div>
+                <div class="step fade-up" style="animation-delay:0.3s">
+                  <span class="step-num" style="background:#22c55e">🥟</span>
+                  <div>
+                    <h4>Bun 直接运行</h4>
+                    <p>开发调试、快速尝鲜。原生 SQLite，零外部依赖，一行命令启动。</p>
+                    <p style="font-size:0.8125rem;color:var(--ink-muted);margin-top:4px"><code>bun run src/local/server.ts</code></p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+          <section class="steps-section" style="background:var(--bg);border-top:1px solid var(--line)">
+            <div class="steps-inner">
               <h2 class="steps-title fade-up">快速开始</h2>
               <div class="steps">
                 <div class="step fade-up" style="animation-delay:0.1s">
                   <span class="step-num">1</span>
                   <div>
-                    <h4>一键部署</h4>
-                    <p>点击按钮，部署到 Cloudflare Workers。无需服务器，无需运维。</p>
+                    <h4>选择部署方式</h4>
+                    <p>Cloudflare Workers 零成本、Docker VPS 自托管、Bun 本地开发，三种方式任选。</p>
                   </div>
                 </div>
                 <div class="step fade-up" style="animation-delay:0.2s">
@@ -97,7 +129,7 @@ function Landing() {
                   <span class="step-num">3</span>
                   <div>
                     <h4>配置模型</h4>
-                    <p>在管理台添加 AI 供应商和模型，设置智能路由规则。</p>
+                    <p>在管理台添加 AI 供应商和模型，一键拉取模型列表并导入。</p>
                   </div>
                 </div>
                 <div class="step fade-up" style="animation-delay:0.4s">
@@ -115,7 +147,7 @@ function Landing() {
           <div class="footer-inner">
             <div class="footer-brand">
               <strong>WeClaw Hub</strong>
-              <span class="footer-muted">Built with Cloudflare Workers</span>
+              <span class="footer-muted">Cloudflare · Docker · Bun</span>
             </div>
             <nav class="footer-links">
               <a href="/guide">使用说明</a>
@@ -238,7 +270,7 @@ a { color: inherit; }
   line-height: 1.7;
   color: var(--ink-muted);
   margin: 0 0 40px;
-  max-width: 560px;
+  max-width: 620px;
 }
 
 .hero-cta {
