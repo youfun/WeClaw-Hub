@@ -186,7 +186,7 @@ function showInviteResult(data) {
     .then(function(r) { return r.json(); })
     .then(function(qr) {
       if (qr.qrcode_svg) {
-        qrDiv.innerHTML = '<div class="mx-auto" style="max-width:200px">' + qr.qrcode_svg + '</div>';
+        qrDiv.innerHTML = '<div class="mx-auto qr-max-width">' + qr.qrcode_svg + '</div>';
       }
     })
     .catch(function() {});
@@ -218,7 +218,7 @@ document.querySelectorAll("[data-toggle-usage]").forEach(function(btn) {
         if (records.length === 0) {
           listDiv.innerHTML = '<p class="meta">暂无扫码记录。</p>';
         } else {
-          listDiv.innerHTML = '<table style="width:100%;font-size:13px"><thead><tr><th style="text-align:left">时间</th><th style="text-align:left">绑定 Bot</th><th style="text-align:left">用户 ID</th><th>结果</th></tr></thead><tbody>' +
+          listDiv.innerHTML = '<table class="table"><thead><tr><th>时间</th><th>绑定 Bot</th><th>用户 ID</th><th>结果</th></tr></thead><tbody>' +
             records.map(function(r) {
               var time = escapeHtml(new Date(r.used_at).toLocaleString("zh-CN"));
               var ok = r.success ? "✅ 成功" : "❌ 失败";

@@ -743,6 +743,14 @@ select {
 .m-0 { margin: 0; }
 .mb-0 { margin-bottom: 0; }
 .mt--1 { margin-top: -1px; }
+.delay-1 { animation-delay: 0.1s; }
+.delay-2 { animation-delay: 0.2s; }
+.delay-3 { animation-delay: 0.3s; }
+.delay-4 { animation-delay: 0.4s; }
+.qr-max-width { max-width: 200px; }
+.table { width: 100%; font-size: var(--text-sm); }
+.table th { text-align: left; }
+.table td { text-align: left; }
 
 /* ── Responsive ── */
 @media (max-width: 860px) {

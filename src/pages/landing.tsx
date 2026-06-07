@@ -31,15 +31,15 @@ function Landing() {
           </nav>
           <div class="hero-content">
             <p class="hero-eyebrow fade-up">WeClaw Hub</p>
-            <h1 class="hero-title fade-up" style="animation-delay:0.1s">
+            <h1 class="hero-title fade-up delay-1">
               你的微信，<br />
               <span class="hero-accent">AI 了</span>
             </h1>
-            <p class="hero-text fade-up" style="animation-delay:0.2s">
+            <p class="hero-text fade-up delay-2">
               三种方式部署：Cloudflare 零成本、Docker 自托管、Bun 直接运行。<br />
               聚合 SaaS 通知、AI 对话、多账号管理，一站式微信消息网关。
             </p>
-            <div class="hero-cta fade-up" style="animation-delay:0.3s">
+            <div class="hero-cta fade-up delay-3">
               <a href="/guide" class="cta-primary">开始使用</a>
               <a href="/admin" class="cta-secondary">管理台 →</a>
             </div>
@@ -53,21 +53,21 @@ function Landing() {
         <main>
           <section class="features">
             <div class="features-inner">
-              <div class="feature fade-up" style="animation-delay:0.1s">
+              <div class="feature fade-up delay-1">
                 <span class="feature-num">01</span>
                 <h3 class="feature-title">通知聚合</h3>
                 <p class="feature-text">
                   GitHub、Stripe 等 SaaS 的 webhook 消息，直接推送到你的微信。支持 Bearer 令牌验证，安全可靠。
                 </p>
               </div>
-              <div class="feature fade-up" style="animation-delay:0.2s">
+              <div class="feature fade-up delay-2">
                 <span class="feature-num">02</span>
                 <h3 class="feature-title">AI 对话</h3>
                 <p class="feature-text">
                   在微信里直接和 Claude、GPT 对话，24 小时在线。智能模型选择、多对话管理、历史压缩。
                 </p>
               </div>
-              <div class="feature fade-up" style="animation-delay:0.3s">
+              <div class="feature fade-up delay-3">
                 <span class="feature-num">03</span>
                 <h3 class="feature-title">消息网关</h3>
                 <p class="feature-text">
@@ -80,7 +80,7 @@ function Landing() {
             <div class="steps-inner">
               <h2 class="steps-title fade-up">三种方式部署</h2>
               <div class="steps">
-                <div class="step fade-up" style="animation-delay:0.1s">
+                <div class="step fade-up delay-1">
                   <span class="step-num bg-brand">☁️</span>
                   <div>
                     <h4>Cloudflare Workers</h4>
@@ -88,7 +88,7 @@ function Landing() {
                     <a href="https://deploy.workers.cloudflare.com/?url=https://github.com/youfun/weclaw-hub" target="_blank" rel="noopener" class="d-inline-block mt-2"><img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare" height="32" /></a>
                   </div>
                 </div>
-                <div class="step fade-up" style="animation-delay:0.2s">
+                <div class="step fade-up delay-2">
                   <span class="step-num bg-sky">🐳</span>
                   <div>
                     <h4>Docker 自托管</h4>
@@ -96,7 +96,7 @@ function Landing() {
                     <p class="text-sm text-muted mt-1"><code>docker compose up -d</code></p>
                   </div>
                 </div>
-                <div class="step fade-up" style="animation-delay:0.3s">
+                <div class="step fade-up delay-3">
                   <span class="step-num bg-terminal">🥟</span>
                   <div>
                     <h4>Bun 直接运行</h4>
@@ -111,28 +111,28 @@ function Landing() {
             <div class="steps-inner">
               <h2 class="steps-title fade-up">快速开始</h2>
               <div class="steps">
-                <div class="step fade-up" style="animation-delay:0.1s">
+                <div class="step fade-up delay-1">
                   <span class="step-num">1</span>
                   <div>
                     <h4>选择部署方式</h4>
                     <p>Cloudflare Workers 零成本、Docker VPS 自托管、Bun 本地开发，三种方式任选。</p>
                   </div>
                 </div>
-                <div class="step fade-up" style="animation-delay:0.2s">
+                <div class="step fade-up delay-2">
                   <span class="step-num">2</span>
                   <div>
                     <h4>扫码绑定</h4>
                     <p>在微信中扫码，绑定机器人账号。支持多账号管理。</p>
                   </div>
                 </div>
-                <div class="step fade-up" style="animation-delay:0.3s">
+                <div class="step fade-up delay-3">
                   <span class="step-num">3</span>
                   <div>
                     <h4>配置模型</h4>
                     <p>在管理台添加 AI 供应商和模型，一键拉取模型列表并导入。</p>
                   </div>
                 </div>
-                <div class="step fade-up" style="animation-delay:0.4s">
+                <div class="step fade-up delay-4">
                   <span class="step-num">4</span>
                   <div>
                     <h4>开始使用</h4>
