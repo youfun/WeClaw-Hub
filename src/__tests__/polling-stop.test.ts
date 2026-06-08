@@ -14,6 +14,25 @@ import { SELF } from "cloudflare:test";
 
 const AUTH = "Bearer test-token";
 
+/** Poll bot status until polling matches expected value, or timeout. */
+async function expectPolling(botId: string, expected: boolean, timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  let lastPolling: boolean | null = null;
+  while (Date.now() < deadline) {
+    const res = await SELF.fetch(
+      `http://localhost/bot/${botId}/status`,
+      { headers: { Authorization: AUTH } },
+    );
+    const s = await res.json() as { polling: boolean };
+    lastPolling = s.polling;
+    if (s.polling === expected) return;
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  throw new Error(
+    `expected polling=${expected} within ${timeoutMs}ms, last was ${lastPolling}`,
+  );
+}
+
 describe("Bot polling stop/start persistence", () => {
   const BOT_ID = "stop-test-bot-" + Date.now();
 
@@ -40,14 +59,9 @@ describe("Bot polling stop/start persistence", () => {
     });
     expect(loginRes.status).toBe(200);
 
-    await new Promise((r) => setTimeout(r, 200));
-
-    const status1 = await SELF.fetch(
-      `http://localhost/bot/${BOT_ID}/status`,
-      { headers: { Authorization: AUTH } },
-    );
-    const s1 = await status1.json() as { polling: boolean };
-    expect(s1.polling).toBe(true);
+    // Poll status until polling is true (login handler sets alarm after notifyStart,
+    // which may take up to 10s to timeout against a remote server in CI).
+    await expectPolling(BOT_ID, true, 15_000);
 
     const stopRes = await SELF.fetch(`http://localhost/bot/${BOT_ID}/stop`, {
       method: "POST",
@@ -94,14 +108,8 @@ describe("Bot polling stop/start persistence", () => {
     });
     expect(startRes.status).toBe(200);
 
-    await new Promise((r) => setTimeout(r, 200));
-
-    const status2 = await SELF.fetch(
-      `http://localhost/bot/${BOT_ID}/status`,
-      { headers: { Authorization: AUTH } },
-    );
-    const s2 = await status2.json() as { polling: boolean };
-    expect(s2.polling).toBe(true);
+    // Poll status until polling is true (start handler re-sets alarm).
+    await expectPolling(BOT_ID, true, 15_000);
   }, 30000);
 
   it("RED: polling stays stopped across multiple /status calls (no alarm re-arm)", async () => {
