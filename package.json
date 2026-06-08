@@ -12,7 +12,9 @@
     "test:watch": "vitest",
     "test:local": "bun test src/__tests__/local/",
     "build": "bun build src/local/server.ts --bundle --target bun --outfile dist/bundle.js",
-    "build:compile": "bun build src/local/server.ts --compile --outfile dist/weclaw-hub"
+    "build:compile": "bun build src/local/server.ts --compile --outfile dist/weclaw-hub",
+    "build:worker-bundle": "./scripts/build-worker-bundle.sh",
+    "deploy:service": "cd deploy-service && bun run deploy"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.13.3",

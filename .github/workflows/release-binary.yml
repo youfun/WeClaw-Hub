@@ -1,4 +1,4 @@
-name: Release Binary
+name: Release
 
 on:
   push:
@@ -28,7 +28,12 @@ jobs:
           mkdir -p dist
           bun build src/local/server.ts --compile --outfile dist/weclaw-hub
 
-      - name: Package
+      - name: Build worker bundle
+        run: |
+          bun build src/index.ts --bundle --target bun --format esm --outfile dist/weclaw-hub.js --minify
+          cp dist/weclaw-hub.js ./
+
+      - name: Package binary
         run: |
           tar -czf weclaw-hub-${{ github.ref_name }}.tar.gz -C dist weclaw-hub
 
@@ -42,6 +47,7 @@ jobs:
           files: |
             weclaw-hub-${{ github.ref_name }}.tar.gz
             weclaw-hub-${{ github.ref_name }}.tar.gz.sha256
+            weclaw-hub.js
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
