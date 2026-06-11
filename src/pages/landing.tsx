@@ -2,14 +2,15 @@
 
 import { renderToString } from "hono/jsx/dom/server";
 
-export function landingPage(): Response {
-  const body = renderToString(<Landing />);
+export function landingPage(deployServiceUrl?: string): Response {
+  const body = renderToString(<Landing deployServiceUrl={deployServiceUrl} />);
   return new Response(`<!DOCTYPE html>${body}`, {
     headers: { "Content-Type": "text/html; charset=utf-8" },
   });
 }
 
-function Landing() {
+function Landing({ deployServiceUrl }: { deployServiceUrl?: string }) {
+  const deployUrl = deployServiceUrl || "https://deploy.weclaw-hub.dev";
   return (
     <html lang="zh-CN">
       <head>
@@ -40,7 +41,8 @@ function Landing() {
               聚合 SaaS 通知、AI 对话、多账号管理，一站式微信消息网关。
             </p>
             <div class="hero-cta fade-up delay-3">
-              <a href="/guide" class="cta-primary">开始使用</a>
+              <a href={deployUrl} class="cta-deploy">🚀 一键部署</a>
+              <a href="/guide" class="cta-secondary">使用说明</a>
               <a href="/admin" class="cta-secondary">管理台 →</a>
             </div>
           </div>
@@ -84,8 +86,8 @@ function Landing() {
                   <span class="step-num bg-brand">☁️</span>
                   <div>
                     <h4>Cloudflare Workers</h4>
-                    <p>零成本部署在 Cloudflare 边缘网络。点击按钮一键部署，无需服务器。</p>
-                    <a href="https://deploy.workers.cloudflare.com/?url=https://github.com/youfun/weclaw-hub" target="_blank" rel="noopener" class="d-inline-block mt-2"><img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare" height="32" /></a>
+                    <p>零成本部署在 Cloudflare 边缘网络。OAuth 一键部署，自动创建 KV/DO/Secrets，无需命令行。</p>
+                    <a href={deployUrl} class="cta-deploy" style="display: inline-flex; margin-top: 12px; padding: 10px 24px; font-size: 0.875rem;">🚀 一键部署</a>
                   </div>
                 </div>
                 <div class="step fade-up delay-2">
@@ -331,6 +333,25 @@ a { color: inherit; }
 .cta-primary:hover {
   background: var(--brand-deep);
   transform: translateY(-1px);
+}
+
+.cta-deploy {
+  display: inline-flex;
+  align-items: center;
+  padding: 14px 32px;
+  background: linear-gradient(135deg, var(--cf) 0%, #e06b1a 100%);
+  color: white;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.9375rem;
+  border-radius: 999px;
+  transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
+  box-shadow: 0 4px 14px rgba(243, 128, 32, 0.35);
+}
+
+.cta-deploy:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(243, 128, 32, 0.45);
 }
 
 .cta-secondary {

@@ -28,4 +28,7 @@ export interface Env {
 
   // Test-only switches. Do not set in production.
   TEST_ONLY_ENABLE_SEED_CHAT?: string;
+
+  // OAuth 一键部署服务地址
+  DEPLOY_SERVICE_URL?: string;
 }
