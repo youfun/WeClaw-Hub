@@ -313,7 +313,7 @@ bun run dev          # 仅启动 wrangler dev，不自动恢复
 
 ## License
 
-MIT
+AGPLv3
 
 ---
 
