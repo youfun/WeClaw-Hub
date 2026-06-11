@@ -64,7 +64,10 @@ app.post("/auth", async (c) => {
   });
 });
 
-app.get("/", () => landingPage());
+app.get("/", (c) => {
+  const deployUrl = c.env.DEPLOY_SERVICE_URL;
+  return landingPage(deployUrl);
+});
 app.get("/guide", () => guidePage());
 app.route("/", invitePublicRoutes);
 

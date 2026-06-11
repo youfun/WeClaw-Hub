@@ -28,6 +28,8 @@ id = "6f16673ab6824ea4963455608a195fad"
 WECLAW_HUB_VERSION = "0.4.0"
 WECLAW_DEPLOYER = "manual"
 SYSTEM_PROMPT = "你是一個有用的AI助手。"
+# DEPLOY_SERVICE_URL = "https://deploy.weclaw-hub.dev"  # OAuth 一键部署入口
+DEPLOY_SERVICE_URL = "https://weclaw-hub-deploy.web3-naas.workers.dev"
 
 # ---- LLM 配置 ----
 # 方案一：Anthropic Claude（默認）
